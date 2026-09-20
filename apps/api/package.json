@@ -1,0 +1,24 @@
+{
+  "name": "@make-my-marriage/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --include ../../packages/shared/dist/**/*.js --env-file-if-exists=.env src/server.ts",
+    "build": "tsc",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --config ../../eslint.config.mjs"
+  },
+  "dependencies": {
+    "@make-my-marriage/shared": "0.1.0",
+    "express": "^5.2.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
+  }
+}
