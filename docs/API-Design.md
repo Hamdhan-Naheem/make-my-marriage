@@ -303,6 +303,9 @@ Hash password using Argon2id
 Create user
  ↓
 Create email verification token
+with a 24-hour expiry
+  ↓
+Store only its SHA-256 hash
  ↓
 Send verification email using Resend
 ```
@@ -351,7 +354,7 @@ Check expiry
  ↓
 Check not already used
  ↓
-Set user.emailVerifiedAt
+Atomically set user.emailVerifiedAt
  ↓
 Set token.usedAt
 ```
@@ -397,6 +400,10 @@ Example:
 ```
 
 This prevents account enumeration.
+
+Each user has one current email-verification-token record. Resending replaces
+its hash and expiry, which invalidates previous unused links. The token is
+single-use, expires after 24 hours, and is stored only as a SHA-256 hash.
 
 ---
 
@@ -478,6 +485,9 @@ Response:
 
 This endpoint is useful when the frontend application initially loads.
 
+Access JWTs expire after 15 minutes and reference a Session ID. Every protected
+request must confirm that the referenced Session remains active and unexpired.
+
 ---
 
 # 14. Refresh Access Token
@@ -503,10 +513,18 @@ Check session not revoked
  ↓
 Check expiry
  ↓
-Generate new access token
- ↓
-Set access-token cookie
+Atomically replace refresh-token hash
+and increment its version
+  ↓
+Generate new access and refresh tokens
+  ↓
+Set HttpOnly cookies
 ```
+
+The Session has a fixed seven-day absolute expiry from login. Rotation must not
+extend it. The authentication implementation must explicitly handle concurrent
+refresh requests and stale-token reuse; this database milestone does not
+implement that behavior.
 
 Response:
 
@@ -3020,4 +3038,4 @@ Retain the six groups in [PRD Section 41](PRD.md#41-implementation-stage-questio
 
 In particular, invitation regeneration/storage and later resharing, inactive-member reinvitation, currency/decimal/overpayment rules, group-versus-person counting and cross-event totals, and reduced invited counts are not finalized here. Dashboard outstanding-payment/vendor details, payer summaries, Google Places View Details, and typed-location lookup contracts still need completion within approved scope.
 
-Archive/deletion behavior, upload completion/failure handling, authentication lifetimes/rotation/revocation/CSRF details, and production HTTPS/secrets remain open. Logout-all remains optional. Existing example payloads and flows do not silently settle these questions, and none of them override the finalized access or financial-security rules.
+Archive/deletion behavior, upload completion/failure handling, CSRF details, and production HTTPS/secrets remain open. Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session, a 24-hour verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. Exact concurrent-refresh and stale-token response behavior remains for the authentication API milestone. Logout-all remains optional. Existing example payloads and flows do not silently settle the remaining questions, and none of them override the finalized access or financial-security rules.

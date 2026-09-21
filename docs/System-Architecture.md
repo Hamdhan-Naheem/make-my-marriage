@@ -833,9 +833,7 @@ Two tokens will be used.
 
 ## Access Token
 
-Short lifetime.
-
-Example:
+The finalized lifetime is:
 
 ```text
 15 minutes
@@ -845,21 +843,23 @@ Contains basic authentication identity such as:
 
 ```text
 userId
+sessionId
 ```
 
 Wedding permissions will generally be retrieved/validated against the database rather than permanently trusting role information contained in the JWT.
 
 ## Refresh Token
 
-Longer lifetime.
-
-Example:
+The finalized lifetime is:
 
 ```text
-7–30 days
+7 days
 ```
 
-Refresh tokens will be associated with Session records.
+Refresh tokens will be associated with Session records. Seven days is an
+absolute expiry measured from login. Refresh-token rotation must not extend it.
+Access and refresh tokens are stored in HttpOnly cookies; only SHA-256 hashes of
+refresh tokens are stored in PostgreSQL.
 
 ---
 
@@ -875,6 +875,8 @@ sessions
 id
 user_id
 refresh_token_hash
+refresh_token_version
+last_rotated_at
 expires_at
 created_at
 revoked_at
@@ -888,6 +890,8 @@ Purpose:
 - Revoke sessions
 - Handle password reset safely
 - Allow future multi-device session management
+- Support atomic refresh-token rotation and stale-token reuse detection
+- Invalidate subsequent access promptly after logout
 
 ---
 
@@ -910,12 +914,23 @@ not revoked
 not expired
 token valid
        ↓
-Generate new access token
+Atomically replace refresh-token hash
+and increment its version
        ↓
-Return new access cookie
+Generate new access and refresh tokens
+       ↓
+Return new HttpOnly cookies
 ```
 
-Refresh-token rotation can be introduced if required during implementation.
+Refresh-token rotation is required. The Session row retains only the current
+token hash and its monotonically increasing version. The later authentication
+API milestone must handle simultaneous refresh requests and stale-token reuse
+explicitly. Rotation never changes the session's absolute expiry.
+
+Every protected request will validate the access JWT and confirm that its
+referenced Session row is active and unexpired. This database check makes a
+logout revocation effective for subsequent requests instead of waiting for the
+15-minute access JWT to expire.
 
 ---
 
@@ -1998,6 +2013,6 @@ The MVP therefore prioritizes understandable code, clear module boundaries, secu
 
 # 59. Implementation-Stage Questions
 
-The six unresolved groups are recorded in [PRD Section 41](PRD.md#41-implementation-stage-questions) and remain open: guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
+The six implementation-stage groups remain recorded in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
 
-In particular, token lifetimes and rotation, immediate session-revocation behavior, CSRF protection, upload completion/failure handling, domain/HTTPS, and production secrets are not finalized by this update. Existing examples are not a selection of those options. Logout-all remains optional. None of these questions weaken the finalized access and financial-security rules.
+Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session that rotation does not extend, a 24-hour single-use email-verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. Exact concurrent-refresh and stale-token response behavior remains for the authentication API milestone. CSRF protection, upload completion/failure handling, domain/HTTPS, and production secrets remain open. Logout-all remains optional. None of these questions weaken the finalized access or financial-security rules.

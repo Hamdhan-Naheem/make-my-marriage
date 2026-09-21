@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, and PostgreSQL/Prisma foundation complete.** Business database models, wedding-management features, authentication backend behavior, and third-party integrations have not started.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, and authentication database models complete.** Authentication API behavior, wedding-management features, other business database models, and third-party integrations have not started.
 
 ## Completed milestones
 
@@ -88,6 +88,28 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Verification recorded:** the PostgreSQL container reported healthy, Prisma schema validation and model-free Client generation passed, Prisma `SELECT 1` succeeded, API startup correctly failed while PostgreSQL was unavailable, the unchanged health endpoint returned HTTP 200 after reconnection, and repository linting, type checking, frontend build, and API build passed.
 
+### Authentication Database Models — Completed
+
+**Summary:** Added and migrated the database foundation for future registration, email verification, login, refresh-token rotation, session checks, and logout without implementing authentication APIs.
+
+**Implemented:**
+
+- Prisma `User`, `Session`, and `EmailVerificationToken` models with UUID primary keys, PostgreSQL timestamp and string types, mapped snake-case tables and columns, relationships, cascade deletion, unique constraints, and query indexes.
+- Nullable `last_name` as specified by the approved Database Design. The `User` table has no global wedding role; roles remain wedding-scoped future data.
+- Argon2id password-hash storage only. The schema has no raw-password field.
+- Fixed-length SHA-256 hash storage for refresh and email-verification tokens. The schema has no raw-token fields.
+- Session metadata for atomic refresh-token replacement and later stale-token handling: `refresh_token_version`, `last_rotated_at`, fixed absolute expiry, and revocation time.
+- One current email-verification-token record per user, supporting 24-hour single-use tokens and invalidation of previous unused links on resend.
+- Initial migration `20260921125253_init_authentication`, creating only the three authentication application tables plus Prisma's migration metadata.
+
+**Important implementation notes:**
+
+- Access JWTs will last 15 minutes. Refresh sessions will have a fixed seven-day absolute expiry that rotation must not extend. Email-verification tokens will last 24 hours.
+- Simultaneous refresh handling, stale-token reuse behavior, protected-request Session checks, Argon2id execution, JWTs, cookies, Resend, and all authentication endpoints remain future API work.
+- `PasswordResetToken`, wedding tables, and other business models were intentionally excluded.
+
+**Verification recorded:** Prisma formatting, validation, migration status, and Client generation passed; PostgreSQL connectivity succeeded; the live catalog confirmed all tables, columns, nullability, primary keys, cascade foreign keys, unique constraints, and indexes; repository linting, type checking, frontend and API builds, and the unchanged health endpoint passed.
+
 ## Features in progress
 
 No major feature is currently recorded as in progress.
@@ -96,8 +118,8 @@ No major feature is currently recorded as in progress.
 
 The following approved MVP areas are planned but not implemented:
 
-- Approved business database models and the first real Prisma migration
-- Custom authentication, email verification, password reset, JWT cookies, and session management
+- Remaining approved business database models and migrations
+- Custom authentication APIs, email verification behavior, password reset, JWT cookies, refresh rotation, and session enforcement
 - Wedding workspace creation and wedding-scoped authorization
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
 - Events, tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
@@ -106,4 +128,4 @@ The following approved MVP areas are planned but not implemented:
 ## Important implementation notes
 
 - The approved requirements in `PRD.md`, `System-Architecture.md`, `Database-Design.md`, and `API-Design.md` remain the source of truth.
-- The six implementation-stage questions in PRD Section 41 remain unresolved and must be addressed before implementing the affected behavior.
+- The six implementation-stage groups in PRD Section 41 remain the implementation-question record. Authentication lifetimes, rotation, and prompt Session revocation are now finalized there; the remaining details must be resolved before implementing affected behavior.

@@ -194,7 +194,7 @@ User
 
 # 4. Authentication Entities
 
-Authentication requires four primary entities:
+Authentication will ultimately require four primary entities:
 
 ```text
 User
@@ -202,6 +202,10 @@ Session
 EmailVerificationToken
 PasswordResetToken
 ```
+
+The first authentication database milestone creates `User`, `Session`, and
+`EmailVerificationToken` only. `PasswordResetToken` remains part of the
+approved password-recovery design and will be added with that later milestone.
 
 ---
 
@@ -307,6 +311,8 @@ sessions
 id
 user_id
 refresh_token_hash
+refresh_token_version
+last_rotated_at
 user_agent
 expires_at
 revoked_at
@@ -345,6 +351,16 @@ refresh_token_hash
 ```
 
 is stored.
+
+The hash is a 64-character hexadecimal SHA-256 digest of a cryptographically
+secure refresh token. `refresh_token_version` and `last_rotated_at` support
+atomic rotation, concurrent-refresh handling, and stale-token reuse detection
+without storing raw or historical refresh tokens. Rotation replaces the hash
+but does not extend the session's fixed seven-day `expires_at` value.
+
+Access JWTs reference the Session row. Protected requests will check that the
+referenced session is still active and unexpired so logout can promptly revoke
+subsequent access.
 
 ### revoked_at
 
@@ -398,6 +414,13 @@ Verify email
 ```
 
 The raw token should never be stored.
+
+Verification tokens expire after 24 hours and are single-use. They are created
+from cryptographically secure random bytes and stored only as 64-character
+hexadecimal SHA-256 hashes. Each user has at most one current verification-token
+record. Resending replaces that record's hash and expiry, invalidating every
+previous unused link. Email verification must update `used_at` and the user's
+`email_verified_at` together in one transaction.
 
 ---
 
@@ -1862,6 +1885,14 @@ UNIQUE(email)
 INDEX(user_id)
 INDEX(expires_at)
 UNIQUE(refresh_token_hash)
+```
+
+## Email Verification Tokens
+
+```text
+UNIQUE(user_id)
+UNIQUE(token_hash)
+INDEX(expires_at)
 ```
 
 ## Wedding Members
