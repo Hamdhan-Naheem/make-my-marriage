@@ -48,6 +48,10 @@ These documents are the source of truth. Finalized decisions override older illu
 
 ## Development workflow
 
+- Before starting a major new feature, read [Project Status](docs/PROJECT_STATUS.md) alongside the relevant approved documentation.
+- Maintain `docs/PROJECT_STATUS.md` as the central record of significant delivery progress. When a major feature or milestone is implemented, update its existing entry with the feature name, implementation summary, relevant technical details, and verification status.
+- Mark a feature **Completed** only after verifying its implementation. If it is partially implemented, mark it **In Progress** and state the remaining work. Preserve existing milestones and update an existing entry for significant improvements instead of creating duplicates.
+- Do not update project status for every small code change, styling adjustment, or minor bug fix. Keep it synchronized with the actual codebase as part of the normal workflow; focus on major features and significant milestones.
 - Before each significant change, explain what will be built and which existing modules will be affected.
 - Implement one feature at a time in small, reviewable steps. Keep code simple, modular, and understandable.
 - Do not silently alter approved architecture decisions. Discuss alternatives first if a documented decision cannot support a requirement.

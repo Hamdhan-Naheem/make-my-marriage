@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { navigationItems } from "@/content/landing-content";
-import { BrandMark } from "./brand-mark";
-import { ComingSoonButton } from "./coming-soon-button";
+import { BrandMark } from "@/components/brand/brand-mark";
+import { AccountLink } from "./account-link";
 
 export function LandingHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -16,8 +16,8 @@ export function LandingHeader() {
           {navigationItems.map((item) => <a className="nav-link rounded-md px-3 py-2 text-sm font-medium text-[#554243] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" href={item.href} key={item.href}>{item.label}</a>)}
         </nav>
         <div className="hidden items-center gap-2 sm:flex">
-          <ComingSoonButton className="text-[#554243]" label="Log In" />
-          <ComingSoonButton className="bg-[#852c3a] text-white" label="Create Your Wedding" />
+          <AccountLink className="text-[#554243]" href="/login" label="Log In" />
+          <AccountLink className="bg-[#852c3a] text-white" href="/register" label="Create Your Wedding" />
         </div>
         <div className="relative lg:hidden">
           <button aria-controls="mobile-navigation" aria-expanded={isMenuOpen} aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"} className="menu-toggle rounded-lg border border-[#e8dfd8] bg-white p-2 text-[#671525] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" onClick={() => setIsMenuOpen((isOpen) => !isOpen)} type="button">
@@ -27,8 +27,8 @@ export function LandingHeader() {
             <div className="mobile-menu-content grid gap-1">
               {navigationItems.map((item) => <a className="nav-link rounded-lg px-3 py-2 text-sm font-medium text-[#554243] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" href={item.href} key={item.href} onClick={() => setIsMenuOpen(false)}>{item.label}</a>)}
               <div className="mt-2 grid gap-2 border-t border-[#e8dfd8] pt-3 sm:hidden">
-                <ComingSoonButton className="text-left text-[#554243]" label="Log In" />
-                <ComingSoonButton className="bg-[#852c3a] text-left text-white" label="Create Your Wedding" />
+                <AccountLink className="text-left text-[#554243]" href="/login" label="Log In" />
+                <AccountLink className="bg-[#852c3a] text-left text-white" href="/register" label="Create Your Wedding" />
               </div>
             </div>
           </nav>

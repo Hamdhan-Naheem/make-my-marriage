@@ -1,5 +1,5 @@
 import { documents, events, featureCards, members, tasks, workspace } from "@/content/landing-content";
-import { ComingSoonButton } from "./coming-soon-button";
+import { AccountLink } from "./account-link";
 import { LandingFooter } from "./landing-footer";
 import { LandingHeader } from "./landing-header";
 import { WorkspacePreview } from "./workspace-preview";
@@ -10,13 +10,12 @@ export function LandingPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#fcf9f8] text-[#1b1c1c]">
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <p className="sr-only" id="account-coming-soon">Account access and wedding creation are not available yet.</p>
       <LandingHeader />
       <main id="main-content">
         <section className="landing-section relative isolate overflow-hidden px-4 pb-18 pt-14 sm:px-6 sm:pb-24 sm:pt-20 lg:px-8 lg:pt-24" id="top">
           <div aria-hidden="true" className="absolute inset-x-0 top-0 -z-10 h-full bg-[radial-gradient(circle_at_70%_20%,rgba(196,122,104,0.16),transparent_30%),radial-gradient(circle_at_20%_40%,rgba(133,44,58,0.08),transparent_27%)]" />
           <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">
-            <div><p className="mb-4 inline-flex rounded-full border border-[#852c3a]/15 bg-white/80 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#7f2736]">The wedding planning workspace</p><h1 className="max-w-xl text-4xl font-bold tracking-[-0.04em] text-[#1b1c1c] sm:text-5xl lg:text-6xl">Plan your whole wedding, <span className="text-[#852c3a]">together.</span></h1><p className="mt-5 max-w-xl text-base leading-7 text-[#554243] sm:text-lg">Bring events, tasks, budgets, expenses, vendors, guests, invitations, RSVP, and documents into one calm workspace for couples and families.</p><div className="mt-7 flex flex-wrap gap-3"><ComingSoonButton className="bg-[#852c3a] text-white shadow-lg shadow-[#852c3a]/15" label="Create Your Wedding" /><a className="rounded-lg border border-[#e8dfd8] bg-white px-4 py-2 text-sm font-semibold text-[#554243] shadow-sm hover:bg-[#f6f3f2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" href="#features">Explore the workspace</a></div></div>
+            <div><p className="mb-4 inline-flex rounded-full border border-[#852c3a]/15 bg-white/80 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#7f2736]">The wedding planning workspace</p><h1 className="max-w-xl text-4xl font-bold tracking-[-0.04em] text-[#1b1c1c] sm:text-5xl lg:text-6xl">Plan your whole wedding, <span className="text-[#852c3a]">together.</span></h1><p className="mt-5 max-w-xl text-base leading-7 text-[#554243] sm:text-lg">Bring events, tasks, budgets, expenses, vendors, guests, invitations, RSVP, and documents into one calm workspace for couples and families.</p><div className="mt-7 flex flex-wrap gap-3"><AccountLink className="bg-[#852c3a] text-white shadow-lg shadow-[#852c3a]/15" href="/register" label="Create Your Wedding" /><a className="rounded-lg border border-[#e8dfd8] bg-white px-4 py-2 text-sm font-semibold text-[#554243] shadow-sm hover:bg-[#f6f3f2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" href="#features">Explore the workspace</a></div></div>
             <WorkspacePreview />
           </div>
         </section>
@@ -36,7 +35,7 @@ export function LandingPage() {
 
         <section className="bg-[#f6f3f2] px-4 py-16 sm:px-6 lg:px-8"><div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.85fr_1.15fr]"><div><p className="eyebrow">Documents in context</p><h2 className="section-heading">Find important wedding files when you need them.</h2><p className="section-copy">Store quotations, agreements, invoices, and payment receipts with the right wedding records. Authorized members see only the documents they are allowed to access.</p></div><div className="grid gap-3">{documents.map(([name, detail]) => <div className="flex items-center gap-3 rounded-xl border border-[#e8dfd8] bg-white p-4" key={name}><span aria-hidden="true" className="inline-flex size-9 items-center justify-center rounded-lg bg-[#f6e6e2] text-[#852c3a]">▣</span><div><p className="text-sm font-bold">{name}</p><p className="mt-1 text-xs text-[#554243]">{detail}</p></div></div>)}</div></div></section>
 
-        <section className="px-4 py-18 text-center sm:px-6 lg:px-8"><div className="mx-auto max-w-2xl"><p className="eyebrow">A calm wedding workspace</p><h2 className="section-heading">Ready to bring your wedding plans together?</h2><p className="section-copy mx-auto">Start with the events, people, and details that matter. Invite your partner and family when the time is right.</p><div className="mt-7"><ComingSoonButton className="bg-[#852c3a] text-white shadow-lg shadow-[#852c3a]/15" label="Create Your Wedding" /></div></div></section>
+        <section className="px-4 py-18 text-center sm:px-6 lg:px-8"><div className="mx-auto max-w-2xl"><p className="eyebrow">A calm wedding workspace</p><h2 className="section-heading">Ready to bring your wedding plans together?</h2><p className="section-copy mx-auto">Start with the events, people, and details that matter. Invite your partner and family when the time is right.</p><div className="mt-7"><AccountLink className="bg-[#852c3a] text-white shadow-lg shadow-[#852c3a]/15" href="/register" label="Create Your Wedding" /></div></div></section>
       </main>
       <LandingFooter />
     </div>
