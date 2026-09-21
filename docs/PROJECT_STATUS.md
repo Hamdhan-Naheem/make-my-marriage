@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Foundation, public home page, and shared authentication UI complete.** Core wedding-management features, persistence, authentication backend behavior, and third-party integrations have not started.
+**Application scaffold, public UI, and PostgreSQL/Prisma foundation complete.** Business database models, wedding-management features, authentication backend behavior, and third-party integrations have not started.
 
 ## Completed milestones
 
@@ -66,6 +66,28 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Verification recorded:** web linting, type checking, and a production build completed successfully. The production route manifest contains all three public authentication routes.
 
+### PostgreSQL + Prisma Foundation — Completed
+
+**Summary:** Added a local PostgreSQL 17 service and connected the Express API through an API-owned Prisma 7.10 client without introducing business models.
+
+**Implemented:**
+
+- Local-only `docker-compose.db.yml` with PostgreSQL bound to `127.0.0.1:5433`, a health check, local development credentials, and a persistent named volume.
+- Prisma 7.10 CLI, Client, PostgreSQL adapter, and `pg` driver installed only in the API workspace.
+- Model-free Prisma schema and workspace-local `prisma7.config.ts`; no migration or artificial table was created.
+- Validated private `DATABASE_URL`, one shared Prisma Client, database verification before Express listens, and graceful Prisma disconnection during shutdown.
+- Root and API scripts for PostgreSQL lifecycle, Prisma validation and generation, connectivity checks, and future development/deployment migrations.
+- Generated Prisma Client output is ignored and regenerated before API development, type checking, and builds.
+
+**Important implementation notes:**
+
+- The API health response remains unchanged. A separate `db:check` command executes `SELECT 1` through Prisma.
+- The local host port is `5433` because an existing PostgreSQL process already uses port `5432`; PostgreSQL still uses port `5432` inside its container.
+- The future AWS RDS connection will use the same private `DATABASE_URL` boundary. Production TLS and secret management remain implementation-stage decisions.
+- Business database models, schema migrations, and authentication remain unimplemented.
+
+**Verification recorded:** the PostgreSQL container reported healthy, Prisma schema validation and model-free Client generation passed, Prisma `SELECT 1` succeeded, API startup correctly failed while PostgreSQL was unavailable, the unchanged health endpoint returned HTTP 200 after reconnection, and repository linting, type checking, frontend build, and API build passed.
+
 ## Features in progress
 
 No major feature is currently recorded as in progress.
@@ -74,7 +96,7 @@ No major feature is currently recorded as in progress.
 
 The following approved MVP areas are planned but not implemented:
 
-- PostgreSQL and Prisma database setup, models, and migrations
+- Approved business database models and the first real Prisma migration
 - Custom authentication, email verification, password reset, JWT cookies, and session management
 - Wedding workspace creation and wedding-scoped authorization
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
@@ -84,5 +106,4 @@ The following approved MVP areas are planned but not implemented:
 ## Important implementation notes
 
 - The approved requirements in `PRD.md`, `System-Architecture.md`, `Database-Design.md`, and `API-Design.md` remain the source of truth.
-- The current `README.md` still describes the original placeholder home page and should be refreshed in a separate documentation task.
 - The six implementation-stage questions in PRD Section 41 remain unresolved and must be addressed before implementing the affected behavior.

@@ -19,7 +19,17 @@
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "start:web": "npm run start --workspace=@make-my-marriage/web",
-    "start:api": "npm run start --workspace=@make-my-marriage/api"
+    "start:api": "npm run start --workspace=@make-my-marriage/api",
+    "db:up": "docker compose -f docker-compose.db.yml up -d",
+    "db:down": "docker compose -f docker-compose.db.yml down",
+    "db:status": "docker compose -f docker-compose.db.yml ps",
+    "db:logs": "docker compose -f docker-compose.db.yml logs postgres",
+    "db:check": "npm run db:check --workspace=@make-my-marriage/api",
+    "prisma:validate": "npm run prisma:validate --workspace=@make-my-marriage/api",
+    "prisma:generate": "npm run prisma:generate --workspace=@make-my-marriage/api",
+    "db:migrate:dev": "npm exec --workspace=@make-my-marriage/api -- prisma migrate dev --config prisma7.config.ts",
+    "db:migrate:deploy": "npm exec --workspace=@make-my-marriage/api -- prisma migrate deploy --config prisma7.config.ts",
+    "db:migrate:status": "npm exec --workspace=@make-my-marriage/api -- prisma migrate status --config prisma7.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

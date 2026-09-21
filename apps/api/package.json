@@ -4,20 +4,35 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run prisma:generate",
     "dev": "tsx watch --include ../../packages/shared/dist/**/*.js --env-file-if-exists=.env src/server.ts",
+    "prebuild": "npm run prisma:generate",
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/server.js",
+    "pretypecheck": "npm run prisma:generate",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --config ../../eslint.config.mjs"
+    "lint": "eslint src --config ../../eslint.config.mjs",
+    "prisma:validate": "prisma validate --config prisma7.config.ts",
+    "prisma:generate": "prisma generate --config prisma7.config.ts",
+    "db:check": "tsx --env-file-if-exists=.env src/scripts/check-database.ts",
+    "db:migrate:dev": "prisma migrate dev --config prisma7.config.ts",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma7.config.ts",
+    "db:migrate:status": "prisma migrate status --config prisma7.config.ts"
   },
   "dependencies": {
     "@make-my-marriage/shared": "0.1.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
     "express": "^5.2.1",
+    "pg": "^8.23.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "dotenv": "^18.0.1",
+    "prisma": "7.10.0",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3"
   }
