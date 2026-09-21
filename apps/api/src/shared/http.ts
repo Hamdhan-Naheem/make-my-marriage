@@ -3,5 +3,6 @@ export type ErrorResponse = {
   error: {
     code: string;
     message: string;
+    fields?: Record<string, string[]>;
   };
 };

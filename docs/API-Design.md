@@ -442,6 +442,11 @@ Create Session
 Set HttpOnly cookies
 ```
 
+Until Resend verification is implemented, local development may explicitly enable
+`AUTH_ALLOW_UNVERIFIED_DEV=true`. Startup rejects this setting outside a confirmed
+local development environment. The bypass never updates `emailVerifiedAt`; when it is
+disabled, unverified users receive `403 EMAIL_VERIFICATION_REQUIRED`.
+
 Response:
 
 ```json
@@ -522,9 +527,11 @@ Set HttpOnly cookies
 ```
 
 The Session has a fixed seven-day absolute expiry from login. Rotation must not
-extend it. The authentication implementation must explicitly handle concurrent
-refresh requests and stale-token reuse; this database milestone does not
-implement that behavior.
+extend it. Rotation conditionally replaces the current hash and increments its version,
+so only one request can succeed. A request that loses a valid race within five seconds
+receives `409 REFRESH_ALREADY_ROTATED` without cookies being cleared. The frontend may
+retry its protected request once because the winning response has supplied the current
+cookies. Reuse outside that window revokes the Session as suspected token theft.
 
 Response:
 
@@ -533,6 +540,10 @@ Response:
   "success": true
 }
 ```
+
+Cookie-setting and cookie-changing authentication routes validate the request Origin
+against the exact configured `WEB_ORIGIN`. The same-origin Next.js rewrite is the
+browser API boundary; the Express API does not enable permissive CORS.
 
 ---
 
@@ -3038,4 +3049,4 @@ Retain the six groups in [PRD Section 41](PRD.md#41-implementation-stage-questio
 
 In particular, invitation regeneration/storage and later resharing, inactive-member reinvitation, currency/decimal/overpayment rules, group-versus-person counting and cross-event totals, and reduced invited counts are not finalized here. Dashboard outstanding-payment/vendor details, payer summaries, Google Places View Details, and typed-location lookup contracts still need completion within approved scope.
 
-Archive/deletion behavior, upload completion/failure handling, CSRF details, and production HTTPS/secrets remain open. Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session, a 24-hour verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. Exact concurrent-refresh and stale-token response behavior remains for the authentication API milestone. Logout-all remains optional. Existing example payloads and flows do not silently settle the remaining questions, and none of them override the finalized access or financial-security rules.
+Archive/deletion behavior, upload completion/failure handling, and production HTTPS/secrets remain open. Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session, a 24-hour verification token, refresh-token rotation, protected-request Session checks, the Section 14 concurrent/stale-token behavior, and exact trusted-Origin checks on cookie-changing routes. Logout-all remains optional. Existing example payloads and flows do not silently settle the remaining questions, and none of them override the finalized access or financial-security rules.

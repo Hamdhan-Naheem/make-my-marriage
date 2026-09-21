@@ -924,8 +924,11 @@ Return new HttpOnly cookies
 
 Refresh-token rotation is required. The Session row retains only the current
 token hash and its monotonically increasing version. The later authentication
-API milestone must handle simultaneous refresh requests and stale-token reuse
-explicitly. Rotation never changes the session's absolute expiry.
+API uses a conditional update on the current hash and version so only one refresh
+request can rotate a token. If two valid requests arrive within five seconds, the
+losing request receives `409 REFRESH_ALREADY_ROTATED`, does not clear cookies, and
+does not revoke the winner. Reuse outside that window is treated as suspected token
+theft and revokes the Session. Rotation never changes the session's absolute expiry.
 
 Every protected request will validate the access JWT and confirm that its
 referenced Session row is active and unexpired. This database check makes a
@@ -2015,4 +2018,4 @@ The MVP therefore prioritizes understandable code, clear module boundaries, secu
 
 The six implementation-stage groups remain recorded in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
 
-Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session that rotation does not extend, a 24-hour single-use email-verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. Exact concurrent-refresh and stale-token response behavior remains for the authentication API milestone. CSRF protection, upload completion/failure handling, domain/HTTPS, and production secrets remain open. Logout-all remains optional. None of these questions weaken the finalized access or financial-security rules.
+Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session that rotation does not extend, a 24-hour single-use email-verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. Concurrent refresh and stale-token reuse use the Section 24 behavior. Cookie-setting and cookie-changing authentication requests require an exact trusted `WEB_ORIGIN`; cookies use SameSite=Lax and become Secure in production. Upload completion/failure handling, domain/HTTPS, and production secret management remain open. Logout-all remains optional. None of these questions weaken the finalized access or financial-security rules.

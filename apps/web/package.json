@@ -12,10 +12,12 @@
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
     "@make-my-marriage/shared": "0.1.0",
+    "@reduxjs/toolkit": "^2.12.0",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.88.0",
+    "react-redux": "^9.3.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

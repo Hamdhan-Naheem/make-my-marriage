@@ -1,5 +1,62 @@
 import { API_BASE_PATH, healthResponseSchema } from "@make-my-marriage/shared";
 
+export type SafeUser = {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  email: string;
+  emailVerified: boolean;
+};
+
+type ApiErrorBody = {
+  success?: false;
+  error?: {
+    code?: string;
+    message?: string;
+    fields?: Record<string, string[]>;
+  };
+};
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly fields?: Record<string, string[]>,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+async function parseError(response: Response): Promise<ApiError> {
+  let body: ApiErrorBody | undefined;
+  try {
+    body = await response.json() as ApiErrorBody;
+  } catch {
+    // Use the safe fallback below for non-JSON proxy or server errors.
+  }
+
+  return new ApiError(
+    response.status,
+    body?.error?.code ?? "REQUEST_FAILED",
+    body?.error?.message ?? "The request could not be completed. Please try again.",
+    body?.error?.fields,
+  );
+}
+
+async function request(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${API_BASE_PATH}${path}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+    ...init,
+    headers: {
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
+}
+
 // Browser-side helper: Next.js forwards this same-origin URL to Express.
 export async function getApiHealth() {
   const response = await fetch(`${API_BASE_PATH}/health`, { cache: "no-store" });
@@ -9,4 +66,58 @@ export async function getApiHealth() {
   }
 
   return healthResponseSchema.parse(await response.json());
+}
+
+export async function registerAccount(input: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}): Promise<void> {
+  const response = await request("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) throw await parseError(response);
+}
+
+export async function login(input: { email: string; password: string }): Promise<SafeUser> {
+  const response = await request("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) throw await parseError(response);
+  const body = await response.json() as { data: { user: SafeUser } };
+  return body.data.user;
+}
+
+let refreshInFlight: Promise<boolean> | undefined;
+
+async function refreshOnce(): Promise<boolean> {
+  refreshInFlight ??= request("/auth/refresh", { method: "POST" })
+    .then((response) => response.ok || response.status === 409)
+    .finally(() => {
+      refreshInFlight = undefined;
+    });
+
+  return refreshInFlight;
+}
+
+export async function getCurrentUser(): Promise<SafeUser> {
+  let response = await request("/auth/me");
+
+  if (response.status === 401 && await refreshOnce()) {
+    response = await request("/auth/me");
+  }
+
+  if (!response.ok) throw await parseError(response);
+  const body = await response.json() as { data: SafeUser };
+  return body.data;
+}
+
+export async function logout(): Promise<void> {
+  const response = await request("/auth/logout", { method: "POST" });
+  if (!response.ok) throw await parseError(response);
 }

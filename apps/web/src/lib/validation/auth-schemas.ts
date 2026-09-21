@@ -4,19 +4,20 @@ const emailSchema = z
   .string()
   .trim()
   .min(1, "Enter your email address.")
+  .max(320, "Use 320 characters or fewer.")
   .email("Enter a valid email address.");
 
 export const loginSchema = z.object({
   email: emailSchema,
-  password: z.string().min(1, "Enter your password."),
+  password: z.string().min(1, "Enter your password.").max(128, "Use 128 characters or fewer."),
 });
 
 export const registerSchema = z
   .object({
-    firstName: z.string().trim().min(1, "Enter your first name."),
-    lastName: z.string().trim().min(1, "Enter your last name."),
+    firstName: z.string().trim().min(1, "Enter your first name.").max(100, "Use 100 characters or fewer."),
+    lastName: z.string().trim().min(1, "Enter your last name.").max(100, "Use 100 characters or fewer."),
     email: emailSchema,
-    password: z.string().min(12, "Use at least 12 characters."),
+    password: z.string().min(12, "Use at least 12 characters.").max(128, "Use 128 characters or fewer."),
     confirmPassword: z.string().min(1, "Confirm your password."),
   })
   .refine((values) => values.password === values.confirmPassword, {

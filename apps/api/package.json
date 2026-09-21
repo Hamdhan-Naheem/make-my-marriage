@@ -10,20 +10,28 @@
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "pretypecheck": "npm run prisma:generate",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src --config ../../eslint.config.mjs",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.test.json",
+    "lint": "eslint src test --config ../../eslint.config.mjs",
+    "test": "npm run db:test:migrate && npm run test:unit && npm run test:integration",
+    "test:unit": "tsx --env-file-if-exists=.env --test test/auth.schema.test.ts test/auth.service.test.ts test/env.test.ts test/password.test.ts test/test-database.test.ts test/tokens.test.ts",
+    "test:integration": "tsx --env-file-if-exists=.env --test test/auth.register.integration.test.ts test/auth.session.integration.test.ts",
     "prisma:validate": "prisma validate --config prisma7.config.ts",
     "prisma:generate": "prisma generate --config prisma7.config.ts",
     "db:check": "tsx --env-file-if-exists=.env src/scripts/check-database.ts",
     "db:migrate:dev": "prisma migrate dev --config prisma7.config.ts",
     "db:migrate:deploy": "prisma migrate deploy --config prisma7.config.ts",
-    "db:migrate:status": "prisma migrate status --config prisma7.config.ts"
+    "db:migrate:status": "prisma migrate status --config prisma7.config.ts",
+    "db:test:setup": "tsx --env-file-if-exists=.env src/scripts/setup-test-database.ts",
+    "db:test:migrate": "npm run db:test:setup && prisma migrate deploy --config prisma7.test.config.ts"
   },
   "dependencies": {
     "@make-my-marriage/shared": "0.1.0",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
+    "argon2": "^0.44.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
+    "jose": "^6.2.12",
     "pg": "^8.23.0",
     "zod": "^4.6.5"
   },
@@ -31,8 +39,10 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
     "dotenv": "^18.0.1",
     "prisma": "7.10.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3"
   }

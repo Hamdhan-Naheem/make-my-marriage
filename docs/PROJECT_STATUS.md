@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, PostgreSQL/Prisma foundation, and authentication database models complete.** Authentication API behavior, wedding-management features, other business database models, and third-party integrations have not started.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication database models, Registration, Sign In, and database-backed session integration are complete.** Email verification and password recovery remain pending, so authentication is not production-ready. Wedding-management features, other business database models, and third-party integrations have not started.
 
 ## Completed milestones
 
@@ -49,19 +49,19 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ### Shared Authentication UI — Completed
 
-**Summary:** Added the connected public Login, Create Account, and Forgot Password interface using the approved Stitch-derived visual direction and reusable frontend components.
+**Summary:** Added the initial public Login, Create Account, and Forgot Password interface using the approved Stitch-derived visual direction and reusable frontend components.
 
 **Implemented:**
 
 - Public Next.js routes at `/login`, `/register`, and `/forgot-password` using one shared authentication layout, card, branding, footer, input styles, buttons, and responsive presentation.
 - React Hook Form and Zod client-side validation with accessible labels, inline errors, keyboard focus, autocomplete attributes, and password visibility controls.
 - Registration fields for first name, last name, email, password, and password confirmation. Passwords require at least 12 characters and must match; no character-composition rule is applied.
-- Honest status messages for locally valid submissions. The forms make no authentication request, store no credentials or tokens, and do not simulate account creation, sign-in, redirects, or email delivery.
+- Honest status messages for locally valid submissions in the initial UI milestone.
 - Landing-page Log In and Create Your Wedding links now point to `/login` and `/register` respectively.
 
 **Important implementation notes:**
 
-- This is a UI-only milestone. Custom authentication, verification, password reset, JWT cookies, Session management, and wedding creation remain unimplemented.
+- This milestone began as UI-only. Registration and Sign In were connected in the later Authentication Integration and Sessions milestone; Forgot Password remains UI-only.
 - Password confirmation is isolated to the client-side registration form and is not prepared as a future API payload.
 
 **Verification recorded:** web linting, type checking, and a production build completed successfully. The production route manifest contains all three public authentication routes.
@@ -110,6 +110,61 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Verification recorded:** Prisma formatting, validation, migration status, and Client generation passed; PostgreSQL connectivity succeeded; the live catalog confirmed all tables, columns, nullability, primary keys, cascade foreign keys, unique constraints, and indexes; repository linting, type checking, frontend and API builds, and the unchanged health endpoint passed.
 
+### Registration API — Completed
+
+**Summary:** Added `POST /api/v1/auth/register` for creating an unverified user. The Register UI was connected in the later Authentication Integration and Sessions milestone.
+
+**Implemented:**
+
+- Modular Express authentication route, controller, service, repository, schema, and reusable password-hashing module.
+- Strict Zod validation for required names, normalized email, and an exact 12–128 character password; unsupported account properties are rejected.
+- Explicit Argon2id hashing with 19 MiB memory, two iterations, parallelism one, and library-generated cryptographically secure salts.
+- Normalized-email duplicate detection backed by PostgreSQL's unique constraint, including safe concurrent-registration handling.
+- A safe `201 Created` response stating that verification is required and no verification email was sent; Prisma users and password hashes are never returned.
+- Route-specific in-memory rate limiting at 10 attempts per IP per 15 minutes, standard rate-limit headers, bounded JSON bodies, and safe validation, duplicate, oversized-body, rate-limit, and unexpected-error responses.
+- Isolated test-database configuration plus focused Node test-runner and Supertest coverage.
+
+**Important implementation notes:**
+
+- Registration creates only an unverified `User`. It creates no `Session`, `EmailVerificationToken`, JWT, cookie, or email.
+- The approved `409 EMAIL_ALREADY_REGISTERED` response exposes account existence. Production anti-enumeration behavior must be finalized with email verification.
+- The in-memory limiter matches the single-process MVP. Nginx proxy-trust configuration remains deployment-stage work.
+- `argon2` 0.44.0 is used because 0.45.1 fell back to native compilation on the current Windows/Node environment and the required Visual Studio C++ toolchain is unavailable.
+
+**Verification recorded:** six unit tests and seven HTTP integration tests passed against a separate migrated PostgreSQL test database. Repository linting, application and test type checks, frontend and API production builds, concurrent duplicate registration, Argon2id verification, rate limiting, data isolation from Session/verification-token records, body-size enforcement, and the unchanged health endpoint all passed.
+
+### Authentication Integration and Sessions — Completed
+
+**Summary:** Connected Sign Up and Sign In end to end, implemented secure database-backed browser sessions, and added a minimal authenticated account screen without introducing wedding features.
+
+**Implemented:**
+
+- Connected `/register` to the real Registration API with loading, disabled, field-error, duplicate-email, rate-limit, server-error, and honest success states. `confirmPassword` remains client-only.
+- Added `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `POST /api/v1/auth/refresh`, and `POST /api/v1/auth/logout` in the modular Express authentication domain.
+- Exact email normalization and password preservation, Argon2id verification, generic invalid-credential responses, and a 10-attempts-per-IP/15-minute in-memory login limiter.
+- Separate HS256 access and refresh JWT secrets; strict signature, algorithm, issuer, audience, expiry, and token-type validation. Access tokens last 15 minutes and fixed Session expiry is seven days.
+- HttpOnly, SameSite=Lax access and refresh cookies; production cookies are Secure. Tokens are not returned in JSON or stored in Redux, `localStorage`, or `sessionStorage`.
+- SHA-256 refresh-token hashes in PostgreSQL, atomic hash/version rotation, Session checks on every protected request, prompt logout revocation, and cookie clearing.
+- Concurrent refresh handling through one conditional-update winner. A losing request within five seconds receives `409 REFRESH_ALREADY_ROTATED` without clearing cookies; later stale-token reuse revokes the Session.
+- Exact trusted-Origin checks on cookie-setting and cookie-changing authentication routes. Browser requests use the existing same-origin Next.js API rewrite without permissive CORS.
+- `/account` loads the safe user through `/auth/me`, performs at most one shared refresh before one retry, displays name/email/verification state, and provides working logout. It is not a wedding dashboard.
+- Added a Redux Toolkit authentication slice and root provider that bootstrap the safe current user from `/auth/me`; access and refresh tokens remain exclusively in HttpOnly cookies.
+- Made the landing-page navigation and primary account CTAs session-aware: guests see Log In/Create Your Wedding, while authenticated users see My Account linking to `/account`.
+- Added client route guards so authenticated users cannot reopen `/login` or `/register`, and guests visiting `/account` are redirected to `/login?returnTo=%2Faccount` without rendering private account details.
+- Logout now revokes the existing backend Session, clears the shared frontend user state, and updates protected navigation immediately. Returning home from `/account` preserves the session.
+
+**Important implementation notes:**
+
+- `AUTH_ALLOW_UNVERIFIED_DEV` defaults to false. It can run only with a development environment, local database, and local web origin; production or remote settings fail startup. It never changes `emailVerifiedAt`.
+- Local JWT secrets are generated into ignored `apps/api/.env`; tracked files contain placeholders only. Access and refresh secrets must differ.
+- Email verification and Resend are still pending. Public production registration/sign-in must not rely on the development bypass.
+- Forgot Password remains UI-only. No password-reset model or endpoint was added.
+- `/account` remains the temporary authenticated destination until the approved wedding dashboard is implemented. Registration still creates an unverified account without creating a session or claiming that an email was sent.
+- The current in-memory rate limiters suit the single-process MVP. Nginx proxy trust and distributed limiting remain deployment work.
+- The production dependency audit still reports four pre-existing high advisories in the Prisma CLI dependency chain. The reported fixes require changing the approved Prisma version and were not applied automatically.
+
+**Verification recorded:** 16 unit tests and 14 HTTP integration tests passed against the separate migrated test database. Repository linting and type checks passed, frontend and API production builds passed, and a live Next.js-rewrite flow returned health 200, registration 201, login 200, current user 200, refresh 200, logout 204, and post-logout current user 401. The generated live-test account was removed from the test database. Authentication-aware navigation subsequently passed focused web linting, type checking, and a production build containing `/`, `/account`, `/login`, and `/register`.
+
 ## Features in progress
 
 No major feature is currently recorded as in progress.
@@ -119,7 +174,7 @@ No major feature is currently recorded as in progress.
 The following approved MVP areas are planned but not implemented:
 
 - Remaining approved business database models and migrations
-- Custom authentication APIs, email verification behavior, password reset, JWT cookies, refresh rotation, and session enforcement
+- Email verification with Resend, Forgot Password, Reset Password, and the password-reset database model
 - Wedding workspace creation and wedding-scoped authorization
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
 - Events, tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
@@ -128,4 +183,4 @@ The following approved MVP areas are planned but not implemented:
 ## Important implementation notes
 
 - The approved requirements in `PRD.md`, `System-Architecture.md`, `Database-Design.md`, and `API-Design.md` remain the source of truth.
-- The six implementation-stage groups in PRD Section 41 remain the implementation-question record. Authentication lifetimes, rotation, and prompt Session revocation are now finalized there; the remaining details must be resolved before implementing affected behavior.
+- The six implementation-stage groups in PRD Section 41 remain the implementation-question record. Authentication lifetimes, rotation, concurrent/stale-token handling, trusted-Origin CSRF defense, and prompt Session revocation are now finalized there; the remaining details must be resolved before implementing affected behavior.
