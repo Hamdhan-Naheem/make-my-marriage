@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication database models, Registration, Sign In, database-backed sessions, and email verification are complete.** Password recovery remains pending, so the full authentication roadmap is not yet complete. Wedding-management features, other business database models, and remaining third-party integrations have not started.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication database models, Registration, Sign In, database-backed sessions, email verification, and the wedding-onboarding frontend are complete.** Password recovery remains pending. Wedding persistence, wedding-scoped backend behavior, other business database models, and remaining third-party integrations have not started.
 
 ## Completed milestones
 
@@ -187,6 +187,28 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Verification recorded:** 19 unit tests and 22 HTTP integration tests passed against the isolated migrated test database, including token hashing, single use, expiry, resend invalidation, concurrent consumption, enumeration-safe responses, delivery-failure recovery, rate limits, and mandatory verification for sessions. API and web linting, type checks, and production builds passed. API startup and health checking succeeded with private Resend configuration loaded; no real test email was sent.
 
+### Wedding Onboarding Frontend — Completed
+
+**Summary:** Added the authenticated, responsive three-step wedding-onboarding interface and the reusable first-wedding dashboard empty state from the approved Stitch designs. This milestone is frontend-only.
+
+**Implemented:**
+
+- Authenticated `/weddings/new` route using the existing `/auth/me` bootstrap and cookie-session refresh flow.
+- Wedding Setup, Wedding Details, and Review and Create steps with accessible keyboard controls, step-level Zod validation, Back/Continue navigation, and preserved form values.
+- Bride Side and Groom Side automatically assign the matching creator side; Joint asks the creator to choose Bride, Groom, or Both. The review keeps Owner role separate from creator side.
+- Required bride, groom, and editable suggested workspace names, plus an optional undecided wedding date.
+- Reusable loading, pending, error, and success presentation states for later API integration.
+- Responsive empty-dashboard component populated from entered onboarding details, with honest zero-data sections and Create your first event as the primary future action.
+- A clearly labelled dashboard preview from the review step and an account-page entry link to onboarding.
+
+**Important implementation notes:**
+
+- Create Wedding does not call an API, create data, or show a false success. It displays a backend-integration-pending status while retaining the entered values.
+- The dashboard preview states that no wedding was created or saved. Wedding, WeddingMember, current-wedding selection, and dashboard API integration remain pending.
+- Onboarding state remains local to the feature until persisted wedding data exists; no premature Redux wedding slice was added.
+
+**Verification recorded:** frontend linting and type checking passed. The production build passed and includes the static `/weddings/new` route. Responsive behavior is implemented for mobile and desktop layouts; backend persistence was intentionally not exercised because no wedding API exists.
+
 ## Features in progress
 
 No major feature is currently recorded as in progress.
@@ -197,10 +219,11 @@ The following approved MVP areas are planned but not implemented:
 
 - Remaining approved business database models and migrations
 - Forgot Password, Reset Password, and the password-reset database model
-- Wedding workspace creation and wedding-scoped authorization
+- Wedding and WeddingMember models, workspace-creation API, onboarding persistence, and wedding-scoped authorization
+- Real wedding dashboard data and post-creation routing
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
 - Events, tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
-- Redux Toolkit business state, API integrations, Resend email, private Amazon S3 documents, and MVP deployment infrastructure
+- Redux Toolkit business state, remaining API integrations, private Amazon S3 documents, and MVP deployment infrastructure
 
 ## Important implementation notes
 
