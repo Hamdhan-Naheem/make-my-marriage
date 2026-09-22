@@ -3,5 +3,5 @@ import { AuthenticatedOnly } from "@/components/auth/authenticated-only";
 import { AuthCard } from "@/components/auth/auth-card";
 
 export default function AccountPage() {
-  return <AuthenticatedOnly><AuthCard description="Your secure session is active. Wedding workspace features will be added in a later milestone." title="Welcome to Make My Marriage"><AccountView /></AuthCard></AuthenticatedOnly>;
+  return <AuthenticatedOnly><AuthCard description="View your account details or continue to your wedding workspaces." title="Your Make My Marriage account"><AccountView /></AuthCard></AuthenticatedOnly>;
 }

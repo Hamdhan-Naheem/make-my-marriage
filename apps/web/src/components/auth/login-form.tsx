@@ -33,7 +33,9 @@ export function LoginForm() {
       await login(values);
       const user = await loadCurrentUser();
       dispatch(authenticated(user));
-      router.replace("/account");
+      const requestedPath = new URLSearchParams(window.location.search).get("returnTo");
+      const safePath = requestedPath?.startsWith("/") && !requestedPath.startsWith("//") ? requestedPath : "/weddings";
+      router.replace(safePath);
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.fields?.email?.[0]) setError("email", { type: "server", message: error.fields.email[0] });

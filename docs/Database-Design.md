@@ -459,14 +459,14 @@ name
 bride_name
 groom_name
 management_type
-main_wedding_date
-budget_amount
-currency
+main_wedding_date (nullable)
 created_by_user_id
 created_at
 updated_at
 archived_at
 ```
+
+The initial wedding-creation migration stores the workspace identity, management type, optional main wedding date, creator, and lifecycle timestamps. `budget_amount` and `currency` remain part of the approved future budget design in Section 11 and will be added with that feature rather than collected during onboarding.
 
 ---
 
@@ -589,6 +589,8 @@ Therefore:
 ```text
 UNIQUE(wedding_id, user_id)
 ```
+
+The initial implementation also adds `UNIQUE(wedding_id, id)` so later same-wedding foreign keys can safely reference a member, plus indexes on `wedding_id` and `user_id` for membership checks. Creating a Wedding and its first active `OWNER` WeddingMember is one database transaction.
 
 ---
 

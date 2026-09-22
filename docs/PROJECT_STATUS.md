@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication database models, Registration, Sign In, database-backed sessions, email verification, and the wedding-onboarding frontend are complete.** Password recovery remains pending. Wedding persistence, wedding-scoped backend behavior, other business database models, and remaining third-party integrations have not started.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, and wedding workspace creation are complete.** Password recovery, remaining business models, and third-party integrations remain pending.
 
 ## Completed milestones
 
@@ -203,11 +203,34 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Important implementation notes:**
 
-- Create Wedding does not call an API, create data, or show a false success. It displays a backend-integration-pending status while retaining the entered values.
-- The dashboard preview states that no wedding was created or saved. Wedding, WeddingMember, current-wedding selection, and dashboard API integration remain pending.
-- Onboarding state remains local to the feature until persisted wedding data exists; no premature Redux wedding slice was added.
+- This milestone began as a frontend-only flow. Its Create Wedding action and empty dashboard were connected to persisted data in the later Wedding Creation Backend and Integration milestone.
+- The optional preview remains local and clearly labelled; no premature Redux wedding slice was added.
 
 **Verification recorded:** frontend linting and type checking passed. The production build passed and includes the static `/weddings/new` route. Responsive behavior is implemented for mobile and desktop layouts; backend persistence was intentionally not exercised because no wedding API exists.
+
+### Wedding Creation Backend and Integration — Completed
+
+**Summary:** Added the first wedding-scoped database models and APIs, connected onboarding to persisted wedding creation, and routed authenticated users to the correct real workspace state.
+
+**Implemented:**
+
+- Additive `Wedding` and `WeddingMember` Prisma models and migration with UUID keys, approved management/role/side enums, nullable main wedding date, lifecycle timestamps, membership constraints, and query indexes. Budget and currency remain deferred.
+- Atomic creation of a Wedding and its first active `OWNER` membership. Creator side is fixed for Bride/Groom Side workspaces and selected independently from the Owner role for Joint workspaces.
+- Authenticated `POST /api/v1/weddings`, `GET /api/v1/weddings`, and `GET /api/v1/weddings/:weddingId` endpoints using routes, controllers, services, repositories, shared Zod contracts, Session-backed authentication, trusted-Origin protection for creation, and active-membership filtering.
+- Wedding detail lookup returns the same not-found result for unknown or unauthorized IDs and exposes only the current member's non-financial workspace context.
+- `/weddings/new` now saves through the real API, displays loading and safe errors, records the current wedding selection, and opens the persisted empty dashboard.
+- `/weddings` resolves membership after login: no weddings open onboarding, while one or more active memberships appear in the wedding chooser. Selecting a wedding opens only that workspace, and a visible Create New Wedding action opens `/weddings/new`. `/account` remains the profile route.
+- The dashboard empty state renders the real wedding name, couple names, type, side, optional date, and Owner identity without fake events, guests, vendors, or financial totals.
+- The existing dashboard account dropdown links to My Account and Switch Wedding and performs logout through the shared session logout flow; the sidebar identity card remains role-and-side context for the selected wedding.
+- Optional wedding dates are validated consistently in the browser and API as Sri Lankan calendar dates that must be today or later, while the undecided option remains available.
+- Suggested workspace names continue following bride/groom name changes until the user customizes the suggestion; later name edits never overwrite a customized workspace name.
+
+**Important implementation notes:**
+
+- Current-wedding selection stores only a wedding UUID in browser storage; every API request still authenticates the Session and verifies active membership in PostgreSQL.
+- Events, invitations, archiving, member management, permissions beyond active membership, and budget/currency are outside this milestone.
+
+**Verification recorded:** the additive migration was inspected before use, applied first to the guarded `make_my_marriage_test` database, and then deployed to the development database without resetting existing data. All 28 API unit tests and 27 HTTP integration tests passed, including atomic Owner creation, active-membership isolation, optional and past-date validation, deferred-field rejection, and health regression coverage. Repository linting, type checks, and production builds passed; the build route manifest includes `/account`, `/weddings`, `/weddings/new`, and `/weddings/[weddingId]`.
 
 ## Features in progress
 
@@ -219,8 +242,6 @@ The following approved MVP areas are planned but not implemented:
 
 - Remaining approved business database models and migrations
 - Forgot Password, Reset Password, and the password-reset database model
-- Wedding and WeddingMember models, workspace-creation API, onboarding persistence, and wedding-scoped authorization
-- Real wedding dashboard data and post-creation routing
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
 - Events, tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
 - Redux Toolkit business state, remaining API integrations, private Amazon S3 documents, and MVP deployment infrastructure

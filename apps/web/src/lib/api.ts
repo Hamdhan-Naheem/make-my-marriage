@@ -1,4 +1,12 @@
-import { API_BASE_PATH, healthResponseSchema } from "@make-my-marriage/shared";
+import {
+  API_BASE_PATH,
+  createWeddingResponseSchema,
+  healthResponseSchema,
+  weddingDetailResponseSchema,
+  weddingListResponseSchema,
+  type CreateWeddingRequest,
+  type WeddingWorkspace,
+} from "@make-my-marriage/shared";
 
 export type SafeUser = {
   id: string;
@@ -127,12 +135,14 @@ async function refreshOnce(): Promise<boolean> {
   return refreshInFlight;
 }
 
-export async function getCurrentUser(): Promise<SafeUser> {
-  let response = await request("/auth/me");
+async function authenticatedRequest(path: string, init?: RequestInit): Promise<Response> {
+  let response = await request(path, init);
+  if (response.status === 401 && await refreshOnce()) response = await request(path, init);
+  return response;
+}
 
-  if (response.status === 401 && await refreshOnce()) {
-    response = await request("/auth/me");
-  }
+export async function getCurrentUser(): Promise<SafeUser> {
+  const response = await authenticatedRequest("/auth/me");
 
   if (!response.ok) throw await parseError(response);
   const body = await response.json() as { data: SafeUser };
@@ -142,4 +152,25 @@ export async function getCurrentUser(): Promise<SafeUser> {
 export async function logout(): Promise<void> {
   const response = await request("/auth/logout", { method: "POST" });
   if (!response.ok) throw await parseError(response);
+}
+
+export async function createWedding(input: CreateWeddingRequest): Promise<WeddingWorkspace> {
+  const response = await authenticatedRequest("/weddings", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseError(response);
+  return createWeddingResponseSchema.parse(await response.json()).data;
+}
+
+export async function listWeddings(): Promise<WeddingWorkspace[]> {
+  const response = await authenticatedRequest("/weddings");
+  if (!response.ok) throw await parseError(response);
+  return weddingListResponseSchema.parse(await response.json()).data;
+}
+
+export async function getWedding(weddingId: string): Promise<WeddingWorkspace> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}`);
+  if (!response.ok) throw await parseError(response);
+  return weddingDetailResponseSchema.parse(await response.json()).data;
 }

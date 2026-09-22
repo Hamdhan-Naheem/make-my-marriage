@@ -59,3 +59,9 @@ export class CsrfValidationError extends AppError {
     super(403, "CSRF_VALIDATION_FAILED", "The request origin is not allowed.");
   }
 }
+
+export class WeddingNotFoundError extends AppError {
+  constructor() {
+    super(404, "WEDDING_NOT_FOUND", "Wedding workspace not found.");
+  }
+}

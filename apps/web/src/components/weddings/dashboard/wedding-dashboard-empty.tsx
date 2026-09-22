@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { WeddingMemberRole } from "@make-my-marriage/shared";
 import { BrandMark } from "@/components/brand/brand-mark";
+import { DashboardAccountMenu } from "@/components/weddings/dashboard/dashboard-account-menu";
 import type { WeddingCreatorSide, WeddingManagementType } from "@/lib/validation/wedding-onboarding-schema";
 
 export type EmptyWeddingDashboardData = {
@@ -12,6 +14,7 @@ export type EmptyWeddingDashboardData = {
   creatorSide: WeddingCreatorSide;
   mainWeddingDate?: string;
   ownerName: string;
+  memberRole: WeddingMemberRole;
 };
 
 const navigation = ["Dashboard", "Events", "Tasks", "Guests", "Invitations & RSVP", "Budget & Expenses", "Vendors", "Vendor Discovery", "Documents"];
@@ -22,6 +25,10 @@ function formatManagementType(value: WeddingManagementType) {
 
 function formatSide(value: WeddingCreatorSide) {
   return value === "BOTH" ? "Both sides" : `${value[0]}${value.slice(1).toLowerCase()} side`;
+}
+
+function formatRole(value: WeddingMemberRole) {
+  return value === "FAMILY_MEMBER" ? "Family Member" : value[0] + value.slice(1).toLowerCase();
 }
 
 function formatDate(value?: string) {
@@ -49,7 +56,7 @@ export function WeddingDashboardEmpty({ data, onBack, preview = false, onCreateE
       <div className="border-t border-[#ece3df] bg-[#f6f3f2] p-4">
         <div className="flex items-center gap-3 rounded-xl bg-white p-3">
           <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-full bg-[#671525] font-bold text-white">{data.ownerName.charAt(0).toUpperCase()}</span>
-          <span className="min-w-0"><strong className="block truncate text-sm">{data.ownerName}</strong><span className="block truncate text-xs text-[#665456]">Owner · {formatSide(data.creatorSide)}</span></span>
+          <span className="min-w-0"><strong className="block truncate text-sm">{data.ownerName}</strong><span className="block truncate text-xs text-[#665456]">{formatRole(data.memberRole)} · {formatSide(data.creatorSide)}</span></span>
         </div>
       </div>
     </>
@@ -67,7 +74,7 @@ export function WeddingDashboardEmpty({ data, onBack, preview = false, onCreateE
             <button aria-expanded={menuOpen} aria-label="Open navigation" className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[#dbcfd0] bg-white text-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a] lg:hidden" onClick={() => setMenuOpen(true)} type="button">☰</button>
             <div className="min-w-0"><p className="truncate text-sm font-bold text-[#671525] sm:text-base">{data.workspaceName}</p><p className="text-xs text-[#665456]">Wedding workspace</p></div>
           </div>
-          {onBack ? <button className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold text-[#671525] hover:bg-[#f6f3f2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a] sm:text-sm" onClick={onBack} type="button">Back to review</button> : null}
+          {onBack ? <button className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold text-[#671525] hover:bg-[#f6f3f2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a] sm:text-sm" onClick={onBack} type="button">Back to review</button> : <DashboardAccountMenu ownerName={data.ownerName} />}
         </header>
 
         <main className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
@@ -78,7 +85,7 @@ export function WeddingDashboardEmpty({ data, onBack, preview = false, onCreateE
               <div><h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Welcome to {data.workspaceName}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-[#f3dedf] sm:text-base">Your wedding workspace is ready for its first plan. Start by creating an event for the ceremony, reception, or another celebration.</p></div>
               <button className="w-full rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#671525] shadow-sm focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-white md:w-auto" onClick={() => onCreateEvent ? onCreateEvent() : setEventNotice(true)} type="button">Create your first event</button>
             </div>
-            {eventNotice && preview ? <p className="mt-5 rounded-lg bg-white/10 px-4 py-3 text-sm text-white" role="status">Event creation will be connected in a later milestone. No event has been created.</p> : null}
+            {eventNotice ? <p className="mt-5 rounded-lg bg-white/10 px-4 py-3 text-sm text-white" role="status">Event creation will be connected in a later milestone. No event has been created.</p> : null}
           </section>
 
           <section className="mt-6 rounded-2xl border border-[#e8dfd8] bg-white p-5 sm:p-6" aria-labelledby="wedding-overview-title">

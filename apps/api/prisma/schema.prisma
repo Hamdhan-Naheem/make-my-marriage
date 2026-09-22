@@ -20,8 +20,75 @@ model User {
 
   sessions               Session[]
   emailVerificationToken EmailVerificationToken?
+  createdWeddings        Wedding[]               @relation("WeddingCreator")
+  weddingMemberships     WeddingMember[]
 
   @@map("users")
+}
+
+enum WeddingManagementType {
+  BRIDE_SIDE
+  GROOM_SIDE
+  JOINT
+
+  @@map("wedding_management_type")
+}
+
+enum WeddingMemberRole {
+  OWNER
+  ADMIN
+  FAMILY_MEMBER
+  COLLABORATOR
+
+  @@map("wedding_member_role")
+}
+
+enum WeddingSide {
+  BRIDE
+  GROOM
+  BOTH
+
+  @@map("wedding_side")
+}
+
+model Wedding {
+  id              String                @id @default(uuid()) @db.Uuid
+  name            String                @db.VarChar(120)
+  brideName       String                @map("bride_name") @db.VarChar(100)
+  groomName       String                @map("groom_name") @db.VarChar(100)
+  managementType  WeddingManagementType @map("management_type")
+  mainWeddingDate DateTime?             @map("main_wedding_date") @db.Date
+  createdByUserId String                @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt      DateTime?             @map("archived_at") @db.Timestamptz(3)
+
+  createdBy User            @relation("WeddingCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  members   WeddingMember[]
+
+  @@index([createdByUserId])
+  @@map("weddings")
+}
+
+model WeddingMember {
+  id        String            @id @default(uuid()) @db.Uuid
+  weddingId String            @map("wedding_id") @db.Uuid
+  userId    String            @map("user_id") @db.Uuid
+  role      WeddingMemberRole
+  side      WeddingSide
+  isActive  Boolean           @default(true) @map("is_active")
+  joinedAt  DateTime          @default(now()) @map("joined_at") @db.Timestamptz(3)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  wedding Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([weddingId, userId])
+  @@unique([weddingId, id])
+  @@index([weddingId])
+  @@index([userId])
+  @@map("wedding_members")
 }
 
 model Session {

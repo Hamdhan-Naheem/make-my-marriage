@@ -9,7 +9,7 @@ export function GuestOnly({ children }: { children: ReactNode }) {
   const status = useAppSelector((state) => state.auth.status);
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/account");
+    if (status === "authenticated") router.replace("/weddings");
   }, [router, status]);
 
   if (status !== "guest") {

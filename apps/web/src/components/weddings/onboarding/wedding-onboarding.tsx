@@ -1,10 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { getSriLankaTodayDate } from "@make-my-marriage/shared";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { BrandMark } from "@/components/brand/brand-mark";
 import { WeddingDashboardEmpty } from "@/components/weddings/dashboard/wedding-dashboard-empty";
+import { ApiError, createWedding } from "@/lib/api";
+import { setCurrentWeddingId } from "@/lib/wedding-selection";
 import {
   weddingOnboardingSchema,
   type WeddingCreatorSide,
@@ -36,18 +40,22 @@ function formatCreatorSide(side: WeddingCreatorSide) {
 }
 
 export function WeddingOnboarding() {
+  const router = useRouter();
   const user = useAppSelector((state) => state.auth.user);
   const [step, setStep] = useState(1);
   const [showDashboardPreview, setShowDashboardPreview] = useState(false);
-  const [submissionState, setSubmissionState] = useState<"idle" | "pending">("idle");
+  const [submissionState, setSubmissionState] = useState<"idle" | "loading" | "error" | "success">("idle");
+  const [submissionMessage, setSubmissionMessage] = useState<string>();
+  const usesSuggestedWorkspaceName = useRef(true);
   const {
     register,
     setValue,
+    setError,
     resetField,
     trigger,
     getValues,
     control,
-    formState: { errors, dirtyFields },
+    formState: { errors },
   } = useForm<WeddingOnboardingValues>({
     resolver: zodResolver(weddingOnboardingSchema),
     defaultValues: { brideName: "", groomName: "", workspaceName: "", mainWeddingDate: "" },
@@ -58,12 +66,13 @@ export function WeddingOnboarding() {
     control,
     name: ["managementType", "creatorSide", "brideName", "groomName", "workspaceName", "mainWeddingDate"],
   });
+  const workspaceNameField = register("workspaceName");
 
   useEffect(() => {
-    if (dirtyFields.workspaceName) return;
+    if (!usesSuggestedWorkspaceName.current) return;
     const names = [groomName?.trim(), brideName?.trim()].filter(Boolean);
     setValue("workspaceName", names.length ? `${names.join(" & ")} Wedding` : "");
-  }, [brideName, dirtyFields.workspaceName, groomName, setValue]);
+  }, [brideName, groomName, setValue]);
 
   function selectManagementType(type: WeddingManagementType) {
     const previousType = managementType;
@@ -89,14 +98,49 @@ export function WeddingOnboarding() {
 
   async function handleCreateWedding() {
     if (!await trigger(undefined, { shouldFocus: true })) return;
-    setSubmissionState("pending");
+    setSubmissionState("loading");
+    setSubmissionMessage(undefined);
+
+    const values = getValues();
+    try {
+      const wedding = await createWedding({
+        name: values.workspaceName.trim(),
+        brideName: values.brideName.trim(),
+        groomName: values.groomName.trim(),
+        managementType: values.managementType,
+        creatorSide: values.creatorSide,
+        mainWeddingDate: values.mainWeddingDate || null,
+      });
+      setCurrentWeddingId(wedding.id);
+      setSubmissionState("success");
+      router.replace(`/weddings/${wedding.id}`);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const fieldMap: Record<string, keyof WeddingOnboardingValues> = {
+          name: "workspaceName",
+          brideName: "brideName",
+          groomName: "groomName",
+          managementType: "managementType",
+          creatorSide: "creatorSide",
+          mainWeddingDate: "mainWeddingDate",
+        };
+        for (const [field, messages] of Object.entries(error.fields ?? {})) {
+          const formField = fieldMap[field];
+          if (formField && messages[0]) setError(formField, { type: "server", message: messages[0] });
+        }
+        setSubmissionMessage(error.message);
+      } else {
+        setSubmissionMessage("The wedding could not be created. Please try again.");
+      }
+      setSubmissionState("error");
+    }
   }
 
   if (!user) return null;
 
   if (showDashboardPreview) {
     const values = getValues();
-    return <WeddingDashboardEmpty data={{ ...values, mainWeddingDate: values.mainWeddingDate || undefined, ownerName: [user.firstName, user.lastName].filter(Boolean).join(" ") }} onBack={() => setShowDashboardPreview(false)} preview />;
+    return <WeddingDashboardEmpty data={{ ...values, mainWeddingDate: values.mainWeddingDate || undefined, ownerName: [user.firstName, user.lastName].filter(Boolean).join(" "), memberRole: "OWNER" }} onBack={() => setShowDashboardPreview(false)} preview />;
   }
 
   return (
@@ -165,8 +209,8 @@ export function WeddingOnboarding() {
                 <div className="mt-7 grid gap-5 sm:grid-cols-2">
                   <label className="block text-sm font-bold text-[#302526]">Bride name <span className="text-[#a22531]">*</span><input aria-invalid={Boolean(errors.brideName)} autoComplete="name" className={fieldClass} placeholder="Enter the bride's name" {...register("brideName")} /><FieldError message={errors.brideName?.message} /></label>
                   <label className="block text-sm font-bold text-[#302526]">Groom name <span className="text-[#a22531]">*</span><input aria-invalid={Boolean(errors.groomName)} autoComplete="name" className={fieldClass} placeholder="Enter the groom's name" {...register("groomName")} /><FieldError message={errors.groomName?.message} /></label>
-                  <label className="block text-sm font-bold text-[#302526] sm:col-span-2">Wedding workspace name <span className="text-[#a22531]">*</span><input aria-invalid={Boolean(errors.workspaceName)} className={fieldClass} placeholder="Enter a name for your wedding workspace" {...register("workspaceName")} /><span className="mt-2 block text-xs font-normal leading-5 text-[#776566]">We suggest a name from the couple&apos;s names. You can edit it.</span><FieldError message={errors.workspaceName?.message} /></label>
-                  <label className="block text-sm font-bold text-[#302526] sm:col-span-2">Main wedding date <span className="font-normal text-[#776566]">(optional)</span><input aria-invalid={Boolean(errors.mainWeddingDate)} className={fieldClass} type="date" {...register("mainWeddingDate")} /><span className="mt-2 block text-xs font-normal leading-5 text-[#776566]">Leave this blank if the date is not decided. You can add it later in Wedding Settings.</span><FieldError message={errors.mainWeddingDate?.message} /></label>
+                  <label className="block text-sm font-bold text-[#302526] sm:col-span-2">Wedding workspace name <span className="text-[#a22531]">*</span><input aria-invalid={Boolean(errors.workspaceName)} className={fieldClass} placeholder="Enter a name for your wedding workspace" {...workspaceNameField} onChange={(event) => { usesSuggestedWorkspaceName.current = false; void workspaceNameField.onChange(event); }} /><span className="mt-2 block text-xs font-normal leading-5 text-[#776566]">We suggest a name from the couple&apos;s names. You can edit it.</span><FieldError message={errors.workspaceName?.message} /></label>
+                  <label className="block text-sm font-bold text-[#302526] sm:col-span-2">Main wedding date <span className="font-normal text-[#776566]">(optional)</span><input aria-invalid={Boolean(errors.mainWeddingDate)} className={fieldClass} min={getSriLankaTodayDate()} type="date" {...register("mainWeddingDate")} /><span className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-normal leading-5 text-[#776566]"><span>Select today or a future date. You can add or change it later.</span><button aria-pressed={!mainWeddingDate} className="rounded-md font-bold text-[#852c3a] underline decoration-[#c47a68]/60 underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" onClick={() => setValue("mainWeddingDate", "", { shouldDirty: true, shouldTouch: true, shouldValidate: true })} type="button">We haven&apos;t decided yet</button></span><FieldError message={errors.mainWeddingDate?.message} /></label>
                 </div>
                 <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><button className="rounded-xl border border-[#cdbfc0] px-6 py-3 text-sm font-bold text-[#554243] transition hover:bg-[#f6f3f2] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a]" onClick={() => setStep(1)} type="button">Back</button><button className="rounded-xl bg-[#852c3a] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#852c3a]/15 transition hover:bg-[#671525] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a]" onClick={continueFromDetails} type="button">Continue</button></div>
               </>
@@ -182,9 +226,8 @@ export function WeddingOnboarding() {
                   <section className="rounded-xl border border-[#e8dfd8] bg-[#fcf9f8] p-4 sm:p-5" aria-labelledby="details-review-title"><div className="flex items-start justify-between gap-4"><h2 className="font-bold" id="details-review-title">Wedding details</h2><button className="rounded-lg px-3 py-2 text-xs font-bold text-[#852c3a] hover:bg-[#f4e8e5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" onClick={() => setStep(2)} type="button">Edit</button></div><dl className="mt-4 grid gap-4 border-t border-[#e8dfd8] pt-4 sm:grid-cols-2"><div><dt className="text-xs text-[#776566]">Bride</dt><dd className="mt-1 text-sm font-bold">{brideName}</dd></div><div><dt className="text-xs text-[#776566]">Groom</dt><dd className="mt-1 text-sm font-bold">{groomName}</dd></div><div><dt className="text-xs text-[#776566]">Workspace name</dt><dd className="mt-1 text-sm font-bold">{workspaceName}</dd></div><div><dt className="text-xs text-[#776566]">Main wedding date</dt><dd className="mt-1 text-sm font-bold">{mainWeddingDate ? new Intl.DateTimeFormat("en-LK", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${mainWeddingDate}T00:00:00Z`)) : "Not decided yet"}</dd></div></dl></section>
                   <div className="rounded-xl bg-[#f4e8e5] p-4 text-sm leading-6 text-[#554243]"><strong className="text-[#671525]">Ownership and next steps.</strong> Creating this workspace will make you its first Owner. Member invitations will be available later from Members & Permissions.</div>
                 </div>
-                <div className="mt-7 rounded-xl border border-dashed border-[#c47a68] bg-[#fffaf8] p-4"><p className="text-xs font-bold uppercase tracking-[0.1em] text-[#852c3a]">Backend integration pending</p><p className="mt-2 text-sm leading-6 text-[#665456]">The Wedding and WeddingMember API is not available yet. This action will not save or create a wedding during the frontend milestone.</p></div>
-                <OnboardingSubmissionState state={submissionState} />
-                <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:justify-between"><button className="rounded-xl border border-[#cdbfc0] px-6 py-3 text-sm font-bold text-[#554243] hover:bg-[#f6f3f2] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a]" onClick={() => setStep(2)} type="button">Back</button><div className="flex flex-col gap-3 sm:flex-row"><button className="rounded-xl border border-[#852c3a] px-5 py-3 text-sm font-bold text-[#852c3a] hover:bg-[#fff7f6] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a]" onClick={showPreview} type="button">Preview empty dashboard</button><button className="rounded-xl bg-[#852c3a] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#852c3a]/15 hover:bg-[#671525] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a]" onClick={handleCreateWedding} type="button">Create Wedding</button></div></div>
+                <OnboardingSubmissionState message={submissionMessage} state={submissionState} />
+                <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:justify-between"><button className="rounded-xl border border-[#cdbfc0] px-6 py-3 text-sm font-bold text-[#554243] hover:bg-[#f6f3f2] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a] disabled:cursor-not-allowed disabled:opacity-60" disabled={submissionState === "loading"} onClick={() => { setSubmissionState("idle"); setSubmissionMessage(undefined); setStep(2); }} type="button">Back</button><div className="flex flex-col gap-3 sm:flex-row"><button className="rounded-xl border border-[#852c3a] px-5 py-3 text-sm font-bold text-[#852c3a] hover:bg-[#fff7f6] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a] disabled:cursor-not-allowed disabled:opacity-60" disabled={submissionState === "loading"} onClick={showPreview} type="button">Preview empty dashboard</button><button className="rounded-xl bg-[#852c3a] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#852c3a]/15 hover:bg-[#671525] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a] disabled:cursor-not-allowed disabled:opacity-60" disabled={submissionState === "loading"} onClick={handleCreateWedding} type="button">{submissionState === "loading" ? "Creating Wedding…" : "Create Wedding"}</button></div></div>
               </>
             ) : null}
           </section>

@@ -744,11 +744,11 @@ Request:
   "groomName": "Ahamed",
   "managementType": "JOINT",
   "mainWeddingDate": "2027-01-20",
-  "budgetAmount": 5000000,
-  "currency": "LKR",
   "creatorSide": "GROOM"
 }
 ```
+
+`mainWeddingDate` may be `null` when the date is undecided. Budget and currency are intentionally excluded from onboarding and this creation contract; they will be configured through the later budget feature. Bride Side requires `creatorSide: "BRIDE"`, Groom Side requires `creatorSide: "GROOM"`, and Joint accepts `BRIDE`, `GROOM`, or `BOTH`.
 
 Processing uses a database transaction:
 
@@ -768,7 +768,10 @@ Response:
   "data": {
     "id": "wedding-uuid",
     "name": "Ahamed & Fathima Wedding",
+    "brideName": "Fathima",
+    "groomName": "Ahamed",
     "managementType": "JOINT",
+    "mainWeddingDate": "2027-01-20",
     "member": {
       "role": "OWNER",
       "side": "GROOM"
@@ -804,16 +807,26 @@ Example response:
     {
       "id": "uuid-1",
       "name": "My Wedding",
-      "role": "OWNER",
-      "side": "GROOM",
-      "mainWeddingDate": "2027-01-20"
+      "brideName": "Fathima",
+      "groomName": "Ahamed",
+      "managementType": "JOINT",
+      "mainWeddingDate": "2027-01-20",
+      "member": {
+        "role": "OWNER",
+        "side": "GROOM"
+      }
     },
     {
       "id": "uuid-2",
       "name": "My Sister's Wedding",
-      "role": "FAMILY_MEMBER",
-      "side": "BRIDE",
-      "mainWeddingDate": "2027-04-10"
+      "brideName": "Nadia",
+      "groomName": "Irfan",
+      "managementType": "BRIDE_SIDE",
+      "mainWeddingDate": null,
+      "member": {
+        "role": "FAMILY_MEMBER",
+        "side": "BRIDE"
+      }
     }
   ]
 }
@@ -827,7 +840,7 @@ Example response:
 GET /api/v1/weddings/:weddingId
 ```
 
-Requires active wedding membership. The example includes `budgetAmount` for a caller with `BUDGET_VIEW`; omit it otherwise. Membership alone does not grant financial access. Collaborators receive only the minimal workspace context needed for their assigned resources, not unrelated nested wedding data.
+Requires active wedding membership. An inaccessible, inactive, archived, or unknown wedding returns the same not-found response so IDs are not disclosed. This initial endpoint returns only non-financial workspace and current-member context. Future financial fields must remain subject to the documented permissions. Collaborators receive only the minimal workspace context needed for their assigned resources, not unrelated nested wedding data.
 
 Response:
 
@@ -841,8 +854,10 @@ Response:
     "groomName": "Ahamed",
     "managementType": "JOINT",
     "mainWeddingDate": "2027-01-20",
-    "budgetAmount": 5000000,
-    "currency": "LKR"
+    "member": {
+      "role": "OWNER",
+      "side": "GROOM"
+    }
   }
 }
 ```
