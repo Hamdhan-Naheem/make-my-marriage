@@ -12,6 +12,7 @@ import { PasswordField } from "./password-field";
 
 export function RegisterForm() {
   const [status, setStatus] = useState<{ message: string; tone: "error" | "success" }>();
+  const [showResendLink, setShowResendLink] = useState(false);
   const { handleSubmit, register, reset, setError, formState: { errors, isSubmitting } } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     mode: "onBlur",
@@ -20,9 +21,10 @@ export function RegisterForm() {
 
   async function handleValidSubmission(values: RegisterFormValues) {
     setStatus(undefined);
+    setShowResendLink(false);
 
     try {
-      await registerAccount({
+      const message = await registerAccount({
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
@@ -31,8 +33,9 @@ export function RegisterForm() {
       reset();
       setStatus({
         tone: "success",
-        message: "Account created. Email verification is still required, and no verification email was sent. You can continue to Log in while the local development bypass is enabled.",
+        message,
       });
+      setShowResendLink(true);
     } catch (error) {
       if (error instanceof ApiError) {
         for (const [field, messages] of Object.entries(error.fields ?? {})) {
@@ -62,6 +65,7 @@ export function RegisterForm() {
       </div>
       <button aria-busy={isSubmitting} className="mt-6 w-full rounded-xl bg-[#852c3a] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#852c3a]/15 transition hover:bg-[#671525] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a] disabled:cursor-not-allowed disabled:opacity-65" disabled={isSubmitting} type="submit">{isSubmitting ? "Creating account…" : "Create account"}</button>
       <AuthFormStatus message={status?.message} tone={status?.tone} />
+      {showResendLink ? <p className="mt-3 text-center text-sm text-[#554243]">No message arrived? <Link className="rounded-md font-bold text-[#7f2736] underline decoration-[#c47a68]/60 underline-offset-4" href="/resend-verification">Request a new verification link</Link></p> : null}
       <p className="mt-6 text-center text-sm text-[#554243]">Already have an account? <Link className="rounded-md font-bold text-[#7f2736] underline decoration-[#c47a68]/60 underline-offset-4 transition hover:text-[#671525] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a]" href="/login">Log in</Link></p>
     </form>
   );

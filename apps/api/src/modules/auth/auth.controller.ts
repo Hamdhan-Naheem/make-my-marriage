@@ -1,5 +1,10 @@
 import type { RequestHandler } from "express";
-import { parseLoginRequest, parseRegisterRequest } from "./auth.schema.js";
+import {
+  parseLoginRequest,
+  parseRegisterRequest,
+  parseResendVerificationRequest,
+  parseVerifyEmailRequest,
+} from "./auth.schema.js";
 import type { SafeUser } from "./auth.service.js";
 import { clearAuthenticationCookies, readCookie, setAuthenticationCookies } from "./auth.cookies.js";
 import { ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME } from "./auth.constants.js";
@@ -11,15 +16,34 @@ export const registerController: RequestHandler = async (req, res, next) => {
     const input = parseRegisterRequest(req.body);
     await authService.register(input);
 
-    res.status(201).json({
+    res.status(202).json({
       success: true,
       data: {
-        message: "Account created. Email verification is required before sign-in.",
-        verification: {
-          required: true,
-          emailSent: false,
-        },
+        message: "If this email can be registered, use the verification message to continue. If it does not arrive, request a new link.",
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyEmailController: RequestHandler = async (req, res, next) => {
+  try {
+    const input = parseVerifyEmailRequest(req.body);
+    await authService.verifyEmail(input.token);
+    res.status(200).json({ success: true, data: { message: "Email verified successfully." } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendVerificationController: RequestHandler = async (req, res, next) => {
+  try {
+    const input = parseResendVerificationRequest(req.body);
+    await authService.resendVerification(input.email);
+    res.status(200).json({
+      success: true,
+      data: { message: "If the account exists and still requires verification, a verification email has been sent." },
     });
   } catch (error) {
     next(error);

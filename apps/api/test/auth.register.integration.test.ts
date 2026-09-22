@@ -3,13 +3,23 @@ import { after, before, describe, it } from "node:test";
 import * as argon2 from "argon2";
 import request from "supertest";
 import { configureTestDatabaseEnvironment } from "../src/config/test-database.js";
+import type { SendVerificationEmailInput, VerificationEmailSender } from "../src/modules/auth/verification-email.sender.js";
 
 configureTestDatabaseEnvironment();
 
-const [{ app }, { prisma }] = await Promise.all([
+const [{ app }, { prisma }, { setVerificationEmailSenderForTests }] = await Promise.all([
   import("../src/app.js"),
   import("../src/config/database.js"),
+  import("../src/modules/auth/auth.dependencies.js"),
 ]);
+
+class FakeVerificationEmailSender implements VerificationEmailSender {
+  sent: SendVerificationEmailInput[] = [];
+  async send(input: SendVerificationEmailInput): Promise<void> { this.sent.push(input); }
+}
+
+const emailSender = new FakeVerificationEmailSender();
+const restoreEmailSender = setVerificationEmailSenderForTests(emailSender);
 
 const emailPrefix = `signup-test-${Date.now()}`;
 
@@ -28,6 +38,7 @@ describe("POST /api/v1/auth/register", { concurrency: false }, () => {
   });
 
   after(async () => {
+    restoreEmailSender();
     await prisma.user.deleteMany({ where: { email: { startsWith: emailPrefix } } });
     await prisma.$disconnect();
   });
@@ -48,13 +59,12 @@ describe("POST /api/v1/auth/register", { concurrency: false }, () => {
     const response = await request(app)
       .post("/api/v1/auth/register")
       .send(registrationBody(email, password))
-      .expect(201);
+      .expect(202);
 
     assert.deepEqual(response.body, {
       success: true,
       data: {
-        message: "Account created. Email verification is required before sign-in.",
-        verification: { required: true, emailSent: false },
+        message: "If this email can be registered, use the verification message to continue. If it does not arrive, request a new link.",
       },
     });
     assert.equal(JSON.stringify(response.body).includes("password"), false);
@@ -65,7 +75,11 @@ describe("POST /api/v1/auth/register", { concurrency: false }, () => {
     assert.equal(await argon2.verify(user.passwordHash, password), true);
     assert.equal(await argon2.verify(user.passwordHash, password.trim()), false);
     assert.equal(await prisma.session.count({ where: { userId: user.id } }), 0);
-    assert.equal(await prisma.emailVerificationToken.count({ where: { userId: user.id } }), 0);
+    const verificationToken = await prisma.emailVerificationToken.findUniqueOrThrow({ where: { userId: user.id } });
+    const sent = emailSender.sent.find((email) => email.email === normalizedEmail);
+    assert.ok(sent);
+    assert.match(verificationToken.tokenHash, /^[a-f0-9]{64}$/);
+    assert.equal(JSON.stringify(verificationToken).includes(sent.rawToken), false);
   });
 
   it("returns safe validation errors for invalid fields and unknown properties", async () => {
@@ -107,22 +121,18 @@ describe("POST /api/v1/auth/register", { concurrency: false }, () => {
     });
   });
 
-  it("rejects a duplicate normalized email", async () => {
+  it("returns the same honest generic response for a duplicate normalized email", async () => {
     const email = `${emailPrefix}-duplicate@example.com`;
 
-    await request(app).post("/api/v1/auth/register").send(registrationBody(email)).expect(201);
+    const created = await request(app).post("/api/v1/auth/register").send(registrationBody(email)).expect(202);
     const response = await request(app)
       .post("/api/v1/auth/register")
       .send(registrationBody(email.toUpperCase()))
-      .expect(409);
+      .expect(202);
 
-    assert.deepEqual(response.body, {
-      success: false,
-      error: {
-        code: "EMAIL_ALREADY_REGISTERED",
-        message: "An account with this email already exists.",
-      },
-    });
+    assert.deepEqual(response.body, created.body);
+    assert.equal(response.body.data.message.includes("created"), false);
+    assert.equal(response.body.data.message.includes("sent"), false);
     assert.equal(await prisma.user.count({ where: { email } }), 1);
   });
 
@@ -133,11 +143,9 @@ describe("POST /api/v1/auth/register", { concurrency: false }, () => {
       request(app).post("/api/v1/auth/register").send(registrationBody(email.toUpperCase())),
     ]);
 
-    assert.deepEqual(
-      responses.map((response) => response.status).sort(),
-      [201, 409],
-    );
+    assert.deepEqual(responses.map((response) => response.status).sort(), [202, 202]);
     assert.equal(await prisma.user.count({ where: { email } }), 1);
+    assert.equal(emailSender.sent.filter((message) => message.email === email).length, 1);
   });
 
   it("rate-limits repeated registration attempts before hashing", async () => {

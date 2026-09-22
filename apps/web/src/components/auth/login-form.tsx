@@ -18,6 +18,7 @@ export function LoginForm() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const [statusMessage, setStatusMessage] = useState<string>();
+  const [showResendLink, setShowResendLink] = useState(false);
   const { handleSubmit, register, setError, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     mode: "onBlur",
@@ -26,6 +27,7 @@ export function LoginForm() {
 
   async function handleValidSubmission(values: LoginFormValues) {
     setStatusMessage(undefined);
+    setShowResendLink(false);
 
     try {
       await login(values);
@@ -36,6 +38,7 @@ export function LoginForm() {
       if (error instanceof ApiError) {
         if (error.fields?.email?.[0]) setError("email", { type: "server", message: error.fields.email[0] });
         if (error.fields?.password?.[0]) setError("password", { type: "server", message: error.fields.password[0] });
+        setShowResendLink(error.code === "EMAIL_VERIFICATION_REQUIRED");
         setStatusMessage(error.message);
         return;
       }
@@ -55,6 +58,7 @@ export function LoginForm() {
       </div>
       <button aria-busy={isSubmitting} className="mt-6 w-full rounded-xl bg-[#852c3a] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#852c3a]/15 transition hover:bg-[#671525] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a] disabled:cursor-not-allowed disabled:opacity-65" disabled={isSubmitting} type="submit">{isSubmitting ? "Logging in…" : "Log in"}</button>
       <AuthFormStatus message={statusMessage} />
+      {showResendLink ? <p className="mt-3 text-center text-sm text-[#554243]"><Link className="rounded-md font-bold text-[#7f2736] underline decoration-[#c47a68]/60 underline-offset-4" href="/resend-verification">Request a new verification link</Link></p> : null}
       <p className="mt-6 text-center text-sm text-[#554243]">New to Make My Marriage? <Link className="rounded-md font-bold text-[#7f2736] underline decoration-[#c47a68]/60 underline-offset-4 transition hover:text-[#671525] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a]" href="/register">Create an account</Link></p>
     </form>
   );

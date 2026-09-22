@@ -2,18 +2,24 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import request, { type Response } from "supertest";
 import { configureTestDatabaseEnvironment } from "../src/config/test-database.js";
+import type { VerificationEmailSender } from "../src/modules/auth/verification-email.sender.js";
 
 configureTestDatabaseEnvironment();
 
-const [{ app }, { prisma }, { env }] = await Promise.all([
+const [{ app }, { prisma }, { env }, { setVerificationEmailSenderForTests }] = await Promise.all([
   import("../src/app.js"),
   import("../src/config/database.js"),
   import("../src/config/env.js"),
+  import("../src/modules/auth/auth.dependencies.js"),
 ]);
+
+const fakeEmailSender: VerificationEmailSender = { async send() {} };
+const restoreEmailSender = setVerificationEmailSenderForTests(fakeEmailSender);
 
 const emailPrefix = `session-test-${Date.now()}`;
 const verifiedEmail = `${emailPrefix}-verified@example.com`;
 const unverifiedEmail = `${emailPrefix}-unverified@example.com`;
+const revokedUnverifiedEmail = `${emailPrefix}-revoked-unverified@example.com`;
 const password = "  Secure Unicode password 🔐  ";
 
 function getSetCookies(response: Response): string[] {
@@ -30,7 +36,7 @@ async function register(email: string) {
   await request(app)
     .post("/api/v1/auth/register")
     .send({ firstName: "Ahamed", lastName: "Mohamed", email, password })
-    .expect(201);
+    .expect(202);
 }
 
 function login(email: string, submittedPassword = password) {
@@ -45,10 +51,13 @@ describe("Sign In and database-backed sessions", { concurrency: false }, () => {
     await prisma.user.deleteMany({ where: { email: { startsWith: emailPrefix } } });
     await register(verifiedEmail);
     await register(unverifiedEmail);
+    await register(revokedUnverifiedEmail);
     await prisma.user.update({ where: { email: verifiedEmail }, data: { emailVerifiedAt: new Date() } });
+    await prisma.user.update({ where: { email: revokedUnverifiedEmail }, data: { emailVerifiedAt: new Date() } });
   });
 
   after(async () => {
+    restoreEmailSender();
     await prisma.user.deleteMany({ where: { email: { startsWith: emailPrefix } } });
     await prisma.$disconnect();
   });
@@ -72,20 +81,22 @@ describe("Sign In and database-backed sessions", { concurrency: false }, () => {
     assert.deepEqual(missing.body, incorrect.body);
   });
 
-  it("rejects unverified users by default and permits only the explicit local-development bypass", async () => {
-    env.AUTH_ALLOW_UNVERIFIED_DEV = false;
+  it("always rejects unverified users", async () => {
     const denied = await login(unverifiedEmail).expect(403);
     assert.equal(denied.body.error.code, "EMAIL_VERIFICATION_REQUIRED");
+  });
 
-    env.AUTH_ALLOW_UNVERIFIED_DEV = true;
-    const allowed = await login(unverifiedEmail).expect(200);
-    assert.equal(allowed.body.data.user.emailVerified, false);
-    const cookies = asCookieHeader(getSetCookies(allowed));
-    await request(app)
-      .post("/api/v1/auth/logout")
-      .set("Origin", env.WEB_ORIGIN)
-      .set("Cookie", cookies)
-      .expect(204);
+  it("revokes an existing session if its user is no longer verified", async () => {
+    const loginResponse = await login(revokedUnverifiedEmail).expect(200);
+    const cookies = asCookieHeader(getSetCookies(loginResponse));
+    const user = await prisma.user.update({
+      where: { email: revokedUnverifiedEmail },
+      data: { emailVerifiedAt: null },
+    });
+
+    await request(app).get("/api/v1/auth/me").set("Cookie", cookies).expect(401);
+    const session = await prisma.session.findFirstOrThrow({ where: { userId: user.id } });
+    assert.ok(session.revokedAt);
   });
 
   it("creates a fixed seven-day Session and returns only HttpOnly SameSite cookies", async () => {

@@ -36,6 +36,12 @@ export class EmailVerificationRequiredError extends AppError {
   }
 }
 
+export class InvalidVerificationTokenError extends AppError {
+  constructor() {
+    super(400, "INVALID_OR_EXPIRED_VERIFICATION_TOKEN", "This verification link is invalid or has expired.");
+  }
+}
+
 export class AuthenticationRequiredError extends AppError {
   constructor(message = "Authentication is required.") {
     super(401, "AUTHENTICATION_REQUIRED", message);

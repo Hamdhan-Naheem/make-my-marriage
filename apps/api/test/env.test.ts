@@ -8,29 +8,14 @@ const base = {
   WEB_ORIGIN: "http://localhost:3000",
   JWT_ACCESS_SECRET: "a".repeat(32),
   JWT_REFRESH_SECRET: "b".repeat(32),
+  RESEND_API_KEY: "re_test_key",
+  AUTH_EMAIL_FROM: "Make My Marriage <verification@example.com>",
 };
 
 describe("authentication environment safeguards", () => {
-  it("defaults the unverified-email bypass to false", () => {
-    assert.equal(parseEnv({ ...base, NODE_ENV: "development" }).AUTH_ALLOW_UNVERIFIED_DEV, false);
-  });
-
-  it("allows the explicit bypass only with local development services", () => {
-    const parsed = parseEnv({ ...base, NODE_ENV: "development", AUTH_ALLOW_UNVERIFIED_DEV: "true" });
-    assert.equal(parsed.AUTH_ALLOW_UNVERIFIED_DEV, true);
-  });
-
-  it("rejects the bypass in production", () => {
-    assert.throws(() => parseEnv({ ...base, NODE_ENV: "production", AUTH_ALLOW_UNVERIFIED_DEV: "true" }));
-  });
-
-  it("rejects the bypass with a remote database or web origin", () => {
-    assert.throws(() => parseEnv({
-      ...base,
-      NODE_ENV: "development",
-      DATABASE_URL: "postgresql://user:password@db.example.com/database",
-      AUTH_ALLOW_UNVERIFIED_DEV: "true",
-    }));
+  it("requires private Resend email configuration", () => {
+    assert.throws(() => parseEnv({ ...base, RESEND_API_KEY: "" }));
+    assert.throws(() => parseEnv({ ...base, AUTH_EMAIL_FROM: "" }));
   });
 
   it("requires separate access and refresh signing secrets", () => {

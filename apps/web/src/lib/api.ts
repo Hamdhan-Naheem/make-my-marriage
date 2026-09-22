@@ -73,13 +73,35 @@ export async function registerAccount(input: {
   lastName: string;
   email: string;
   password: string;
-}): Promise<void> {
+}): Promise<string> {
   const response = await request("/auth/register", {
     method: "POST",
     body: JSON.stringify(input),
   });
 
   if (!response.ok) throw await parseError(response);
+  const body = await response.json() as { data: { message: string } };
+  return body.data.message;
+}
+
+export async function verifyEmail(token: string): Promise<string> {
+  const response = await request("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = await response.json() as { data: { message: string } };
+  return body.data.message;
+}
+
+export async function resendVerification(email: string): Promise<string> {
+  const response = await request("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+  if (!response.ok) throw await parseError(response);
+  const body = await response.json() as { data: { message: string } };
+  return body.data.message;
 }
 
 export async function login(input: { email: string; password: string }): Promise<SafeUser> {

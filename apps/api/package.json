@@ -14,7 +14,7 @@
     "lint": "eslint src test --config ../../eslint.config.mjs",
     "test": "npm run db:test:migrate && npm run test:unit && npm run test:integration",
     "test:unit": "tsx --env-file-if-exists=.env --test test/auth.schema.test.ts test/auth.service.test.ts test/env.test.ts test/password.test.ts test/test-database.test.ts test/tokens.test.ts",
-    "test:integration": "tsx --env-file-if-exists=.env --test test/auth.register.integration.test.ts test/auth.session.integration.test.ts",
+    "test:integration": "tsx --env-file-if-exists=.env --test test/auth.register.integration.test.ts test/auth.session.integration.test.ts test/auth.verification.integration.test.ts",
     "prisma:validate": "prisma validate --config prisma7.config.ts",
     "prisma:generate": "prisma generate --config prisma7.config.ts",
     "db:check": "tsx --env-file-if-exists=.env src/scripts/check-database.ts",
@@ -33,6 +33,7 @@
     "express-rate-limit": "^8.6.2",
     "jose": "^6.2.12",
     "pg": "^8.23.0",
+    "resend": "^6.28.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {

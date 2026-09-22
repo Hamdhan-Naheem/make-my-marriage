@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication database models, Registration, Sign In, and database-backed session integration are complete.** Email verification and password recovery remain pending, so authentication is not production-ready. Wedding-management features, other business database models, and third-party integrations have not started.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication database models, Registration, Sign In, database-backed sessions, and email verification are complete.** Password recovery remains pending, so the full authentication roadmap is not yet complete. Wedding-management features, other business database models, and remaining third-party integrations have not started.
 
 ## Completed milestones
 
@@ -120,14 +120,14 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 - Strict Zod validation for required names, normalized email, and an exact 12–128 character password; unsupported account properties are rejected.
 - Explicit Argon2id hashing with 19 MiB memory, two iterations, parallelism one, and library-generated cryptographically secure salts.
 - Normalized-email duplicate detection backed by PostgreSQL's unique constraint, including safe concurrent-registration handling.
-- A safe `201 Created` response stating that verification is required and no verification email was sent; Prisma users and password hashes are never returned.
+- At this milestone, a safe `201 Created` response stated that verification was required and no verification email was sent; the later Email Verification milestone replaced this with the generic `202 Accepted` delivery flow.
 - Route-specific in-memory rate limiting at 10 attempts per IP per 15 minutes, standard rate-limit headers, bounded JSON bodies, and safe validation, duplicate, oversized-body, rate-limit, and unexpected-error responses.
 - Isolated test-database configuration plus focused Node test-runner and Supertest coverage.
 
 **Important implementation notes:**
 
-- Registration creates only an unverified `User`. It creates no `Session`, `EmailVerificationToken`, JWT, cookie, or email.
-- The approved `409 EMAIL_ALREADY_REGISTERED` response exposes account existence. Production anti-enumeration behavior must be finalized with email verification.
+- At this milestone, registration created only an unverified `User`; token creation and email delivery were added later.
+- The temporary `409 EMAIL_ALREADY_REGISTERED` behavior was replaced by the generic registration response in the Email Verification milestone.
 - The in-memory limiter matches the single-process MVP. Nginx proxy-trust configuration remains deployment-stage work.
 - `argon2` 0.44.0 is used because 0.45.1 fell back to native compilation on the current Windows/Node environment and the required Visual Studio C++ toolchain is unavailable.
 
@@ -155,15 +155,37 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Important implementation notes:**
 
-- `AUTH_ALLOW_UNVERIFIED_DEV` defaults to false. It can run only with a development environment, local database, and local web origin; production or remote settings fail startup. It never changes `emailVerifiedAt`.
 - Local JWT secrets are generated into ignored `apps/api/.env`; tracked files contain placeholders only. Access and refresh secrets must differ.
-- Email verification and Resend are still pending. Public production registration/sign-in must not rely on the development bypass.
+- Email verification and Resend were completed in the later Email Verification milestone. The temporary unverified-development bypass was removed.
 - Forgot Password remains UI-only. No password-reset model or endpoint was added.
 - `/account` remains the temporary authenticated destination until the approved wedding dashboard is implemented. Registration still creates an unverified account without creating a session or claiming that an email was sent.
 - The current in-memory rate limiters suit the single-process MVP. Nginx proxy trust and distributed limiting remain deployment work.
 - The production dependency audit still reports four pre-existing high advisories in the Prisma CLI dependency chain. The reported fixes require changing the approved Prisma version and were not applied automatically.
 
 **Verification recorded:** 16 unit tests and 14 HTTP integration tests passed against the separate migrated test database. Repository linting and type checks passed, frontend and API production builds passed, and a live Next.js-rewrite flow returned health 200, registration 201, login 200, current user 200, refresh 200, logout 204, and post-logout current user 401. The generated live-test account was removed from the test database. Authentication-aware navigation subsequently passed focused web linting, type checking, and a production build containing `/`, `/account`, `/login`, and `/register`.
+
+### Email Verification with Resend — Completed
+
+**Summary:** Completed registration verification delivery, secure token consumption, resend recovery, and the matching public frontend flow without adding password recovery.
+
+**Implemented:**
+
+- Registration creates the unverified `User` and one 24-hour verification-token record atomically, stores only a SHA-256 hash, and sends the raw 256-bit token only through the Resend adapter.
+- New and duplicate registrations return the same conditional `202 Accepted` response without claiming that an account or email was created or sent.
+- `POST /api/v1/auth/verify-email` atomically verifies the user and consumes the token once. Expired, invalid, replaced, and reused tokens share a safe error.
+- `POST /api/v1/auth/resend-verification` uses an enumeration-safe response, replaces previous unused links, enforces IP and persistent per-account cooldowns, and permits immediate retry after delivery failure.
+- Resend delivery failures preserve the account and remove the unusable token so the resend path is immediately available.
+- Added `/verify-email` and `/resend-verification` using the existing authentication layout, plus registration and login links into the verification flow.
+- Removed `AUTH_ALLOW_UNVERIFIED_DEV`. Unverified users cannot sign in, and any existing unverified Session is rejected and revoked on protected access or refresh.
+- Added private `RESEND_API_KEY` and `AUTH_EMAIL_FROM` configuration. Automated tests inject a fake sender and never contact Resend.
+
+**Important implementation notes:**
+
+- No Prisma schema change or migration was required; the existing `EmailVerificationToken` model supports the complete flow.
+- Email delivery acceptance does not guarantee inbox delivery, so the UI always provides a safe resend path.
+- Forgot Password, Reset Password, and `PasswordResetToken` remain outside this milestone.
+
+**Verification recorded:** 19 unit tests and 22 HTTP integration tests passed against the isolated migrated test database, including token hashing, single use, expiry, resend invalidation, concurrent consumption, enumeration-safe responses, delivery-failure recovery, rate limits, and mandatory verification for sessions. API and web linting, type checks, and production builds passed. API startup and health checking succeeded with private Resend configuration loaded; no real test email was sent.
 
 ## Features in progress
 
@@ -174,7 +196,7 @@ No major feature is currently recorded as in progress.
 The following approved MVP areas are planned but not implemented:
 
 - Remaining approved business database models and migrations
-- Email verification with Resend, Forgot Password, Reset Password, and the password-reset database model
+- Forgot Password, Reset Password, and the password-reset database model
 - Wedding workspace creation and wedding-scoped authorization
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
 - Events, tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents

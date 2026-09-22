@@ -316,15 +316,21 @@ Response:
 {
   "success": true,
   "data": {
-    "message": "Registration successful. Please verify your email."
+    "message": "If this email can be registered, use the verification message to continue. If it does not arrive, request a new link."
   }
 }
 ```
 
+New, duplicate, and concurrent duplicate submissions use the same honest response. It
+does not claim that an account was created or an email was sent. A new account and its
+hashed verification token are committed atomically before Resend delivery is attempted.
+If delivery fails, the account remains and the unusable token record is removed so the
+user can immediately request another link.
+
 Status:
 
 ```text
-201 Created
+202 Accepted
 ```
 
 ---
@@ -442,10 +448,9 @@ Create Session
 Set HttpOnly cookies
 ```
 
-Until Resend verification is implemented, local development may explicitly enable
-`AUTH_ALLOW_UNVERIFIED_DEV=true`. Startup rejects this setting outside a confirmed
-local development environment. The bypass never updates `emailVerifiedAt`; when it is
-disabled, unverified users receive `403 EMAIL_VERIFICATION_REQUIRED`.
+Unverified users receive `403 EMAIL_VERIFICATION_REQUIRED` in every environment. There
+is no development bypass. Protected requests and refresh attempts also reject and
+revoke any existing Session whose user is not verified.
 
 Response:
 

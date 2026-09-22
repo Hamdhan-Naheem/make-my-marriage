@@ -7,6 +7,8 @@ export interface CreateUserData {
   lastName: string;
   email: string;
   passwordHash: string;
+  verificationTokenHash: string;
+  verificationExpiresAt: Date;
 }
 
 export interface AuthUserRecord {
@@ -37,10 +39,26 @@ export interface CreateSessionData {
   userAgent: string | null;
 }
 
+export type VerificationResendUser = {
+  id: string;
+  firstName: string;
+  email: string;
+  emailVerifiedAt: Date | null;
+  currentTokenCreatedAt: Date | null;
+};
+
 export interface AuthRepository {
-  findUserIdByEmail(email: string): Promise<string | null>;
   findUserByEmail(email: string): Promise<AuthUserRecord | null>;
-  createUnverifiedUser(data: CreateUserData): Promise<void>;
+  createUnverifiedUser(data: CreateUserData): Promise<{ id: string }>;
+  deleteVerificationToken(userId: string, tokenHash: string): Promise<void>;
+  findUserForVerificationResend(email: string): Promise<VerificationResendUser | null>;
+  replaceVerificationToken(input: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    createdAt: Date;
+  }): Promise<void>;
+  consumeVerificationToken(tokenHash: string, now: Date): Promise<boolean>;
   createSession(data: CreateSessionData): Promise<void>;
   findSessionWithUser(sessionId: string): Promise<SessionWithUserRecord | null>;
   rotateRefreshToken(input: {
@@ -55,34 +73,113 @@ export interface AuthRepository {
 }
 
 export class PrismaAuthRepository implements AuthRepository {
-  async findUserIdByEmail(email: string): Promise<string | null> {
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
-    });
-
-    return user?.id ?? null;
-  }
-
-  async createUnverifiedUser(data: CreateUserData): Promise<void> {
+  async createUnverifiedUser(data: CreateUserData): Promise<{ id: string }> {
     try {
-      await prisma.user.create({
-        data: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          email: data.email,
-          passwordHash: data.passwordHash,
-          emailVerifiedAt: null,
-        },
-        select: { id: true },
+      return await prisma.$transaction(async (transaction) => {
+        const user = await transaction.user.create({
+          data: {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email: data.email,
+            passwordHash: data.passwordHash,
+            emailVerifiedAt: null,
+          },
+          select: { id: true },
+        });
+        await transaction.emailVerificationToken.create({
+          data: {
+            userId: user.id,
+            tokenHash: data.verificationTokenHash,
+            expiresAt: data.verificationExpiresAt,
+          },
+          select: { id: true },
+        });
+        return user;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new EmailAlreadyRegisteredError();
       }
-
       throw error;
     }
+  }
+
+  async deleteVerificationToken(userId: string, tokenHash: string): Promise<void> {
+    await prisma.emailVerificationToken.deleteMany({ where: { userId, tokenHash } });
+  }
+
+  async findUserForVerificationResend(email: string): Promise<VerificationResendUser | null> {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        firstName: true,
+        email: true,
+        emailVerifiedAt: true,
+        emailVerificationToken: { select: { createdAt: true } },
+      },
+    });
+    if (!user) return null;
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      email: user.email,
+      emailVerifiedAt: user.emailVerifiedAt,
+      currentTokenCreatedAt: user.emailVerificationToken?.createdAt ?? null,
+    };
+  }
+
+  async replaceVerificationToken(input: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    createdAt: Date;
+  }): Promise<void> {
+    await prisma.emailVerificationToken.upsert({
+      where: { userId: input.userId },
+      create: {
+        userId: input.userId,
+        tokenHash: input.tokenHash,
+        expiresAt: input.expiresAt,
+        createdAt: input.createdAt,
+      },
+      update: {
+        tokenHash: input.tokenHash,
+        expiresAt: input.expiresAt,
+        usedAt: null,
+        createdAt: input.createdAt,
+      },
+      select: { id: true },
+    });
+  }
+
+  async consumeVerificationToken(tokenHash: string, now: Date): Promise<boolean> {
+    return prisma.$transaction(async (transaction) => {
+      const token = await transaction.emailVerificationToken.findUnique({
+        where: { tokenHash },
+        select: {
+          id: true,
+          userId: true,
+          usedAt: true,
+          expiresAt: true,
+          user: { select: { emailVerifiedAt: true } },
+        },
+      });
+      if (!token || token.usedAt || token.expiresAt <= now || token.user.emailVerifiedAt) return false;
+
+      const consumed = await transaction.emailVerificationToken.updateMany({
+        where: { id: token.id, usedAt: null, expiresAt: { gt: now } },
+        data: { usedAt: now },
+      });
+      if (consumed.count !== 1) return false;
+
+      const verified = await transaction.user.updateMany({
+        where: { id: token.userId, emailVerifiedAt: null },
+        data: { emailVerifiedAt: now },
+      });
+      if (verified.count !== 1) throw new Error("Email verification state changed concurrently.");
+      return true;
+    });
   }
 
   async findUserByEmail(email: string): Promise<AuthUserRecord | null> {
@@ -161,7 +258,6 @@ export class PrismaAuthRepository implements AuthRepository {
         lastRotatedAt: input.rotatedAt,
       },
     });
-
     return result.count === 1;
   }
 

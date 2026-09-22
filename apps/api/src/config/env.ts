@@ -16,10 +16,8 @@ const envSchema = z.object({
     .string()
     .min(32, "JWT_REFRESH_SECRET must contain at least 32 characters.")
     .refine((value) => !value.startsWith("replace-with-"), "JWT_REFRESH_SECRET must not use the example placeholder."),
-  AUTH_ALLOW_UNVERIFIED_DEV: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((value) => value === "true"),
+  RESEND_API_KEY: z.string().trim().min(1, "RESEND_API_KEY is required."),
+  AUTH_EMAIL_FROM: z.string().trim().min(1, "AUTH_EMAIL_FROM is required."),
 }).superRefine((value, context) => {
   if (value.JWT_ACCESS_SECRET === value.JWT_REFRESH_SECRET) {
     context.addIssue({
@@ -29,26 +27,6 @@ const envSchema = z.object({
     });
   }
 
-  if (!value.AUTH_ALLOW_UNVERIFIED_DEV) return;
-
-  let databaseHost = "";
-  let webHost = "";
-
-  try {
-    databaseHost = new URL(value.DATABASE_URL).hostname;
-    webHost = new URL(value.WEB_ORIGIN).hostname;
-  } catch {
-    return;
-  }
-
-  const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
-  if (value.NODE_ENV !== "development" || !localHosts.has(databaseHost) || !localHosts.has(webHost)) {
-    context.addIssue({
-      code: "custom",
-      path: ["AUTH_ALLOW_UNVERIFIED_DEV"],
-      message: "AUTH_ALLOW_UNVERIFIED_DEV may be enabled only for local development with local database and web origins.",
-    });
-  }
 });
 
 export function parseEnv(source: NodeJS.ProcessEnv) {

@@ -114,7 +114,8 @@ The API requires a PostgreSQL connection. Copy `apps/api/.env.example` to
 | `apps/api/.env` | `WEB_ORIGIN` | Trusted browser origin; `http://localhost:3000` locally |
 | `apps/api/.env` | `JWT_ACCESS_SECRET` | Required random secret of at least 32 characters |
 | `apps/api/.env` | `JWT_REFRESH_SECRET` | Required separate random secret of at least 32 characters |
-| `apps/api/.env` | `AUTH_ALLOW_UNVERIFIED_DEV` | `false`; enable only for intentional local testing |
+| `apps/api/.env` | `RESEND_API_KEY` | Private Resend API key for authentication email delivery |
+| `apps/api/.env` | `AUTH_EMAIL_FROM` | Verified sender used for authentication emails |
 | `apps/web/.env.local` | `API_ORIGIN` | `http://localhost:4000` |
 
 The root `.env.example` is a reference; root `.env` is not loaded automatically. Do
@@ -195,8 +196,11 @@ separate test database for `TEST_DATABASE_URL`.
 
 ## Authentication flow
 
-- `/register` creates an unverified account and honestly states that no verification
-  email was sent.
+- `/register` creates an unverified account and verification token, then requests
+  delivery through Resend. Its generic response does not reveal whether an account
+  already exists or whether delivery succeeded.
+- `/verify-email` consumes a 24-hour, single-use verification link, while
+  `/resend-verification` replaces the current unused link after its cooldown.
 - `/login` creates a fixed seven-day Session and sets 15-minute access and rotating
   refresh JWTs in HttpOnly, SameSite=Lax cookies. Production cookies are Secure.
 - `/account` loads the safe current-user response from `/api/v1/auth/me` and provides
@@ -204,9 +208,9 @@ separate test database for `TEST_DATABASE_URL`.
 - Tokens are never returned in JSON or stored in Redux, `localStorage`, or
   `sessionStorage`. PostgreSQL stores only the SHA-256 refresh-token hash.
 
-Email verification is still required by the product. Until that milestone is built,
-local testing may explicitly set `AUTH_ALLOW_UNVERIFIED_DEV=true`. This never changes
-`emailVerifiedAt` and cannot be enabled with production or remote service settings.
+Email verification is required for every environment. Unverified users cannot sign in,
+refresh an old session, or access authenticated routes. Forgot Password and Reset
+Password remain future work.
 
 ## Verify the scaffold
 
