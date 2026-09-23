@@ -18,7 +18,7 @@
     "build": "npm run build:shared && npm run build --workspace=@make-my-marriage/web && npm run build --workspace=@make-my-marriage/api",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspace=@make-my-marriage/api",
+    "test": "npm run test --workspace=@make-my-marriage/web && npm run test --workspace=@make-my-marriage/api",
     "start:web": "npm run start --workspace=@make-my-marriage/web",
     "start:api": "npm run start --workspace=@make-my-marriage/api",
     "db:up": "docker compose -f docker-compose.db.yml up -d",

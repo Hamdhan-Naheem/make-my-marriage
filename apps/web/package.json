@@ -2,11 +2,14 @@
   "name": "@make-my-marriage/web",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "eslint",
+    "pretest": "npm run build --workspace=@make-my-marriage/shared",
+    "test": "tsx --test src/lib/validation/event-schema.test.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
@@ -28,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3"
   }
 }

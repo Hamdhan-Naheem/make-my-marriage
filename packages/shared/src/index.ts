@@ -17,7 +17,7 @@ export const weddingManagementTypeSchema = z.enum(["BRIDE_SIDE", "GROOM_SIDE", "
 export const weddingMemberRoleSchema = z.enum(["OWNER", "ADMIN", "FAMILY_MEMBER", "COLLABORATOR"]);
 export const weddingSideSchema = z.enum(["BRIDE", "GROOM", "BOTH"]);
 
-const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date in YYYY-MM-DD format.").refine((value) => {
+export const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date in YYYY-MM-DD format.").refine((value) => {
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }, "Use a valid calendar date.");

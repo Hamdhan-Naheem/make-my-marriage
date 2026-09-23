@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, and wedding workspace creation are complete.** Password recovery, remaining business models, and third-party integrations remain pending.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, wedding workspace creation, and the Events frontend are complete.** Event persistence, password recovery, remaining business models, and third-party integrations remain pending.
 
 ## Completed milestones
 
@@ -232,6 +232,25 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Verification recorded:** the additive migration was inspected before use, applied first to the guarded `make_my_marriage_test` database, and then deployed to the development database without resetting existing data. All 28 API unit tests and 27 HTTP integration tests passed, including atomic Owner creation, active-membership isolation, optional and past-date validation, deferred-field rejection, and health regression coverage. Repository linting, type checks, and production builds passed; the build route manifest includes `/account`, `/weddings`, `/weddings/new`, and `/weddings/[weddingId]`.
 
+### Events Frontend — Completed
+
+**Summary:** Added the responsive, wedding-scoped Events interface from the approved Stitch references without adding Event persistence or presenting sample content as saved data.
+
+**Implemented:**
+
+- Authenticated Overview, Create, Details, and Edit routes under `/weddings/:weddingId/events`, using the real selected wedding context and active Owner membership.
+- A shared responsive wedding workspace shell for the existing dashboard and Events routes, including mobile navigation, account controls, and direct Dashboard/Events navigation.
+- A reusable React Hook Form and Zod Event form with required custom names, optional description/date/times/location, same-day time validation, preserved values, and accessible errors and focus states.
+- Fixed read-only BRIDE/GROOM sides for Bride Side and Groom Side weddings; accessible BRIDE/GROOM/BOTH radios for Joint weddings, with no Create default and the previewed saved side selected during Edit.
+- Honest empty Overview and backend-pending Create/Save behavior. Details and Edit sample content is prominently labelled as fictional frontend preview data and is never stored or represented as a database record.
+
+**Important implementation notes:**
+
+- This milestone is frontend-only. Event Prisma models, migrations, APIs, persistence, and backend Owner/side enforcement remain pending.
+- No Stitch simulator controls or scripts were copied into production code. Other wedding roles remain unavailable until the approved capability and assignment infrastructure exists.
+
+**Verification recorded:** five focused Event validation tests passed. Frontend linting, type checking, and the production build passed; the route manifest includes Overview, Create, Details, and Edit Event routes.
+
 ## Features in progress
 
 No major feature is currently recorded as in progress.
@@ -243,7 +262,7 @@ The following approved MVP areas are planned but not implemented:
 - Remaining approved business database models and migrations
 - Forgot Password, Reset Password, and the password-reset database model
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
-- Events, tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
+- Event database/API integration; tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
 - Redux Toolkit business state, remaining API integrations, private Amazon S3 documents, and MVP deployment infrastructure
 
 ## Important implementation notes
