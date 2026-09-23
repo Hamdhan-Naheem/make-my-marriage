@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import type { SafeUser } from "../auth/auth.service.js";
 import { weddingService } from "./wedding.dependencies.js";
 import { getLoadedWedding } from "./wedding.middleware.js";
-import { parseCreateWeddingRequest } from "./wedding.schema.js";
+import { parseCreateWeddingRequest, parseUpdateWeddingRequest } from "./wedding.schema.js";
 
 export const createWeddingController: RequestHandler = async (req, res, next) => {
   try {
@@ -27,3 +27,12 @@ export const getWeddingController: RequestHandler = (_req, res) => {
   res.status(200).json({ success: true, data: getLoadedWedding(res.locals) });
 };
 
+export const updateWeddingController: RequestHandler = async (req, res, next) => {
+  try {
+    const user = res.locals["authUser"] as SafeUser;
+    const wedding = getLoadedWedding(res.locals);
+    res.status(200).json({ success: true, data: await weddingService.updateForOwner(wedding.id, user.id, parseUpdateWeddingRequest(req.body)) });
+  } catch (error) {
+    next(error);
+  }
+};

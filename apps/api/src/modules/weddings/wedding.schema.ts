@@ -1,4 +1,4 @@
-import { createWeddingRequestSchema, type CreateWeddingRequest } from "@make-my-marriage/shared";
+import { createWeddingRequestSchema, updateWeddingRequestSchema, type CreateWeddingRequest, type UpdateWeddingRequest } from "@make-my-marriage/shared";
 import { z } from "zod";
 import { RequestValidationError, type ValidationFields } from "../../shared/errors.js";
 
@@ -25,3 +25,6 @@ export function parseWeddingId(params: unknown): string {
   return parseWithValidation(weddingIdParamsSchema, params).weddingId;
 }
 
+export function parseUpdateWeddingRequest(body: unknown): UpdateWeddingRequest {
+  return parseWithValidation(updateWeddingRequestSchema, body);
+}

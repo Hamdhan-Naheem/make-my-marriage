@@ -731,7 +731,7 @@ Enforce same-wedding assignment with composite foreign keys:
 
 One member can have many explicitly assigned resources, and one resource can be assigned to multiple members. Removing an access row revokes that resource assignment. Access rows confer nothing for inactive memberships, and never grant capabilities by themselves.
 
-An event assignment does not grant access to its tasks, vendors, documents, guests, or expenses. Each of the four supported resource types is assigned separately. `tasks.assigned_member_id` records responsibility; Collaborator task access requires its own `member_task_access` row.
+An event assignment does not grant access to its tasks, vendors, documents, guests, or expenses. Each of the four supported resource types is assigned separately. When Task responsibility is introduced later, Collaborator task access will still require its own `member_task_access` row.
 
 Queries must apply these restrictions to lists, nested relations, search, totals, and individual records, not just direct resource endpoints. General module permissions must not expose other resource types to Collaborators. Any workflow that creates a resource for a Collaborator must establish its authorized explicit assignment atomically; a request cannot grant itself arbitrary access.
 
@@ -812,17 +812,19 @@ wedding_id
 name
 description
 side
-starts_at
-ends_at
+event_date
+start_time
+end_time
 venue_name
 address
-latitude
-longitude
-budget_amount
 created_by_user_id
 created_at
 updated_at
 ```
+
+For the initial Events milestone, `event_date`, `start_time`, `end_time`, `description`, `venue_name`, and `address` are nullable. Times are stored separately from the local calendar date and represent same-day scheduling. A start or end time requires an event date, an end time requires a start time, and the end time must be later than the start time. Event budget and coordinates remain deferred to their approved future features.
+
+The `wedding_id` and `created_by_user_id` foreign keys use `ON DELETE RESTRICT`. Event reads and writes always include the wedding ID in their database scope. The composite uniqueness of `(wedding_id, id)` supports future same-wedding resource-access foreign keys.
 
 Relationship:
 
@@ -906,17 +908,18 @@ tasks
 id
 wedding_id
 event_id
-title
+name
 description
-assigned_member_id
-due_at
+side
+due_date
 status
+completed_at
 created_by_user_id
 created_at
 updated_at
 ```
 
-`event_id` is optional.
+`name` and `side` are required. `description`, `due_date`, `event_id`, and `completed_at` are nullable. `event_id` is optional so the same Task system supports wedding-wide and Event-linked work. Member assignment is deferred and is not part of the initial Task model.
 
 This allows tasks such as:
 
@@ -926,14 +929,17 @@ Create overall wedding budget
 
 which might not belong to one event.
 
+Every Task belongs to one Wedding. When `event_id` is present, a composite foreign key from `(wedding_id, event_id)` to the Event's `(wedding_id, id)` ensures that the linked Event belongs to the same Wedding. Add `UNIQUE(wedding_id, id)` to Task for later explicit Task-access relationships.
+
+Task sides use `BRIDE`, `GROOM`, or `BOTH`. Bride Side weddings allow only `BRIDE`, Groom Side weddings allow only `GROOM`, and Joint weddings allow all three values. This wedding-type rule is enforced by the service because it depends on the related Wedding. The compatibility rule between a linked Event's side and its Task's side remains unresolved and must not be encoded in a constraint or application rule until approved.
+
 ---
 
 # 23. Task Status
 
 ```text
-TODO
-IN_PROGRESS
-DONE
+TO_DO
+COMPLETED
 ```
 
 Example:
@@ -941,28 +947,18 @@ Example:
 ```text
 Confirm Photographer
 
-status = IN_PROGRESS
+status = TO_DO
 ```
+
+New Tasks start as `TO_DO` with `completed_at = NULL`. Changing status to `COMPLETED` records the completion timestamp. Reopening a Task changes status to `TO_DO` and clears `completed_at`. Writes should keep status and completion timestamp consistent atomically.
 
 ---
 
 # 24. Task Assignment
 
-Tasks are assigned using:
+Member assignment is deferred beyond the initial Task Planner milestone. When introduced, assignments must reference WeddingMember rather than User because responsibility is wedding-specific, and the assigned WeddingMember must belong to the same Wedding as the Task.
 
-```text
-assigned_member_id
-```
-
-rather than `user_id`.
-
-This is important because assignments are wedding-specific.
-
-The assigned WeddingMember must belong to the same Wedding as the Task.
-
-This should be validated by the backend.
-
-For Collaborators, task responsibility does not by itself grant access. An explicit `member_task_access` row and the relevant capability are also required. Assigning an event does not assign its tasks.
+For Collaborators, future task responsibility will not by itself grant access. An explicit `member_task_access` row and the relevant capability will also be required. Assigning an Event does not assign its Tasks.
 
 ---
 
@@ -1814,15 +1810,15 @@ This can be reused for:
 ```text
 WeddingMember
 Event
+Task
 Guest
 ```
 
 ## TaskStatus
 
 ```text
-TODO
-IN_PROGRESS
-DONE
+TO_DO
+COMPLETED
 ```
 
 ## GuestType
@@ -1914,17 +1910,20 @@ For each typed access table, use the composite primary key and same-wedding fore
 
 ```text
 INDEX(wedding_id)
-INDEX(wedding_id, starts_at)
+INDEX(wedding_id, event_date)
+INDEX(created_by_user_id)
+UNIQUE(wedding_id, id)
 ```
 
 ## Tasks
 
 ```text
 INDEX(wedding_id)
-INDEX(event_id)
-INDEX(assigned_member_id)
 INDEX(wedding_id, status)
-INDEX(due_at)
+INDEX(wedding_id, side)
+INDEX(wedding_id, event_id)
+INDEX(wedding_id, due_date)
+UNIQUE(wedding_id, id)
 ```
 
 ## Expenses
@@ -2018,7 +2017,7 @@ is_active = false
 
 rather than deleting historical references.
 
-For example, Tasks previously assigned to that member can still retain history.
+For example, after member assignment is introduced, Tasks assigned to that member can still retain history.
 
 Inactive members cannot use resource access rows. Only Owners can deactivate or demote Owners, and the transaction must preserve at least one active Owner even during concurrent requests. The last-Owner invariant also applies to any other operation that changes membership or role.
 
@@ -2608,7 +2607,7 @@ This database structure is the recommended Version 1.0 foundation for Make My Ma
 
 # 72. Implementation-Stage Questions
 
-The six unresolved groups are maintained in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
+The six existing unresolved groups are maintained in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details. The same section also records the unresolved compatibility rule between an Event side and the side of a Task linked to that Event.
 
 In particular, the conceptual Guest-to-Invitation relationship in Sections 41 and 68 and the index list in Section 53 do not settle whether regenerated invitations replace a row or retain history. Choose the persistence model and matching uniqueness constraints during implementation. Do not silently infer that choice from the diagram.
 

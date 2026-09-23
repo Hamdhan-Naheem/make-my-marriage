@@ -65,3 +65,21 @@ export class WeddingNotFoundError extends AppError {
     super(404, "WEDDING_NOT_FOUND", "Wedding workspace not found.");
   }
 }
+
+export class WeddingOwnerAccessRequiredError extends AppError {
+  constructor() {
+    super(403, "WEDDING_OWNER_ACCESS_REQUIRED", "Only an active wedding Owner can update Wedding Settings.");
+  }
+}
+
+export class EventsOwnerAccessRequiredError extends AppError {
+  constructor() {
+    super(403, "EVENTS_OWNER_ACCESS_REQUIRED", "Only an active wedding Owner can manage Events in this milestone.");
+  }
+}
+
+export class EventNotFoundError extends AppError {
+  constructor() {
+    super(404, "EVENT_NOT_FOUND", "Event not found.");
+  }
+}

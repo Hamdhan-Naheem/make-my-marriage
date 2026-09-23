@@ -91,7 +91,71 @@ export const weddingListResponseSchema = z.object({
 
 export const weddingDetailResponseSchema = createWeddingResponseSchema;
 
+export const updateWeddingRequestSchema = z.object({
+  name: z.string().trim().min(1, "Enter a wedding workspace name.").max(120, "Use 120 characters or fewer.").optional(),
+  brideName: z.string().trim().min(1, "Enter the bride's name.").max(100, "Use 100 characters or fewer.").optional(),
+  groomName: z.string().trim().min(1, "Enter the groom's name.").max(100, "Use 100 characters or fewer.").optional(),
+  mainWeddingDate: futureWeddingDateSchema.nullable().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, { message: "Provide at least one wedding field to update." });
+
+const eventTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a valid time in HH:mm format.");
+
+const eventWritableShape = {
+  name: z.string().trim().min(1, "Enter an event name.").max(120, "Use 120 characters or fewer."),
+  description: z.string().trim().max(1000, "Use 1,000 characters or fewer.").nullable().optional(),
+  side: weddingSideSchema,
+  eventDate: dateOnlySchema.nullable().optional(),
+  startTime: eventTimeSchema.nullable().optional(),
+  endTime: eventTimeSchema.nullable().optional(),
+  venueName: z.string().trim().max(160, "Use 160 characters or fewer.").nullable().optional(),
+  address: z.string().trim().max(500, "Use 500 characters or fewer.").nullable().optional(),
+};
+
+function validateEventSchedule(
+  value: { eventDate?: string | null; startTime?: string | null; endTime?: string | null },
+  context: z.RefinementCtx,
+) {
+  if ((value.startTime || value.endTime) && !value.eventDate) {
+    context.addIssue({ code: "custom", message: "Add an event date before adding times.", path: ["eventDate"] });
+  }
+  if (value.endTime && !value.startTime) {
+    context.addIssue({ code: "custom", message: "Add a start time before adding an end time.", path: ["startTime"] });
+  }
+  if (value.startTime && value.endTime && value.endTime <= value.startTime) {
+    context.addIssue({ code: "custom", message: "End time must be later than start time on the same day.", path: ["endTime"] });
+  }
+}
+
+export const createEventRequestSchema = z.object(eventWritableShape).strict().superRefine(validateEventSchedule);
+
+export const updateEventRequestSchema = z.object(eventWritableShape).partial().strict().refine(
+  (value) => Object.keys(value).length > 0,
+  { message: "Provide at least one event field to update." },
+);
+
+export const eventSchema = z.object({
+  id: z.string().uuid(),
+  weddingId: z.string().uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  side: weddingSideSchema,
+  eventDate: dateOnlySchema.nullable(),
+  startTime: eventTimeSchema.nullable(),
+  endTime: eventTimeSchema.nullable(),
+  venueName: z.string().nullable(),
+  address: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const eventResponseSchema = z.object({ success: z.literal(true), data: eventSchema });
+export const eventListResponseSchema = z.object({ success: z.literal(true), data: z.array(eventSchema) });
+
 export type CreateWeddingRequest = z.infer<typeof createWeddingRequestSchema>;
+export type UpdateWeddingRequest = z.infer<typeof updateWeddingRequestSchema>;
+export type CreateEventRequest = z.infer<typeof createEventRequestSchema>;
+export type UpdateEventRequest = z.infer<typeof updateEventRequestSchema>;
+export type WeddingEvent = z.infer<typeof eventSchema>;
 export type WeddingManagementType = z.infer<typeof weddingManagementTypeSchema>;
 export type WeddingMemberRole = z.infer<typeof weddingMemberRoleSchema>;
 export type WeddingSide = z.infer<typeof weddingSideSchema>;

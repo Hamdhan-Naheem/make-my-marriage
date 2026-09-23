@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { CreateWeddingRequest } from "@make-my-marriage/shared";
-import type { CreateWeddingRecord, WeddingRecord, WeddingRepository } from "../src/modules/weddings/wedding.repository.js";
+import type { CreateWeddingRecord, UpdateWeddingRecord, WeddingRecord, WeddingRepository } from "../src/modules/weddings/wedding.repository.js";
 import { WeddingService } from "../src/modules/weddings/wedding.service.js";
 import { WeddingNotFoundError } from "../src/shared/errors.js";
 
@@ -19,9 +19,11 @@ class FakeWeddingRepository implements WeddingRepository {
   created?: CreateWeddingRecord;
   listed: WeddingRecord[] = [record];
   found: WeddingRecord | null = record;
+  updated?: UpdateWeddingRecord;
   async createWithOwner(input: CreateWeddingRecord) { this.created = input; return record; }
   async listForActiveMember() { return this.listed; }
   async findForActiveMember() { return this.found; }
+  async updateForActiveOwner(_weddingId: string, _userId: string, input: UpdateWeddingRecord) { this.updated = input; return { ...record, ...input }; }
 }
 
 const input: CreateWeddingRequest = {
@@ -56,5 +58,12 @@ describe("WeddingService", () => {
       WeddingNotFoundError,
     );
   });
-});
 
+  it("updates only approved settings and converts the optional date", async () => {
+    const repository = new FakeWeddingRepository();
+    const result = await new WeddingService(repository).updateForOwner(record.id, "owner-id", { name: "Updated Wedding", mainWeddingDate: null });
+    assert.deepEqual(repository.updated, { name: "Updated Wedding", mainWeddingDate: null });
+    assert.equal(result.name, "Updated Wedding");
+    assert.equal(result.managementType, "JOINT");
+  });
+});

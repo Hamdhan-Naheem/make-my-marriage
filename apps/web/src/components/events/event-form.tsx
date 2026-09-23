@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import type { WeddingManagementType, WeddingSide } from "@make-my-marriage/shared";
+import { ApiError } from "@/lib/api";
 import { eventFormSchema, eventSideForWedding, enforceWeddingEventSide, type EventFormValues } from "@/lib/validation/event-schema";
 
 const sideOptions: Array<{ value: WeddingSide; label: string; description: string }> = [
@@ -13,11 +14,12 @@ const sideOptions: Array<{ value: WeddingSide; label: string; description: strin
 ];
 
 const inputClass = "w-full rounded-lg border border-transparent bg-[#f6f3f2] px-3.5 py-2.5 text-sm text-[#302526] transition placeholder:text-[#998889] focus:border-[#852c3a] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#852c3a]/20";
+const eventFieldNames = ["name", "description", "side", "eventDate", "startTime", "endTime", "venueName", "address"] as const;
 
-export function EventForm({ initialValues, managementType, mode, onCancel, preview = false }: { initialValues?: Partial<EventFormValues>; managementType: WeddingManagementType; mode: "create" | "edit"; onCancel: () => void; preview?: boolean }) {
+export function EventForm({ initialValues, managementType, mode, onCancel, onSubmit }: { initialValues?: Partial<EventFormValues>; managementType: WeddingManagementType; mode: "create" | "edit"; onCancel: () => void; onSubmit: (values: EventFormValues) => Promise<void> }) {
   const fixedSide = eventSideForWedding(managementType);
-  const [pendingNotice, setPendingNotice] = useState(false);
-  const { control, formState: { errors }, handleSubmit, register, setValue } = useForm<EventFormValues>({
+  const [submissionError, setSubmissionError] = useState<string>();
+  const { control, formState: { errors, isSubmitting }, handleSubmit, register, setError, setValue } = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
       name: initialValues?.name ?? "",
@@ -35,21 +37,32 @@ export function EventForm({ initialValues, managementType, mode, onCancel, previ
   const selectedSide = useWatch({ control, name: "side" });
 
   function clearSchedule() {
-    setPendingNotice(false);
+    setSubmissionError(undefined);
     setValue("eventDate", "", { shouldDirty: true, shouldValidate: true });
     setValue("startTime", "", { shouldDirty: true, shouldValidate: true });
     setValue("endTime", "", { shouldDirty: true, shouldValidate: true });
   }
 
-  const submit = handleSubmit((values) => {
+  const submit = handleSubmit(async (values) => {
     const normalizedValues = enforceWeddingEventSide(values, managementType);
     if (normalizedValues.side !== values.side) setValue("side", normalizedValues.side, { shouldValidate: true });
-    setPendingNotice(true);
+    setSubmissionError(undefined);
+    try {
+      await onSubmit(normalizedValues);
+    } catch (error) {
+      if (error instanceof ApiError && error.fields) {
+        for (const [field, messages] of Object.entries(error.fields)) {
+          if (eventFieldNames.includes(field as typeof eventFieldNames[number]) && messages[0]) {
+            setError(field as typeof eventFieldNames[number], { message: messages[0], type: "server" });
+          }
+        }
+      }
+      setSubmissionError(error instanceof ApiError ? error.message : "The Event could not be saved. Please try again.");
+    }
   });
 
   return (
-    <form className="rounded-2xl border border-[#eee6e2] bg-white p-4 shadow-sm sm:p-6 lg:p-8" noValidate onChange={() => setPendingNotice(false)} onSubmit={submit}>
-      {preview ? <div className="mb-6 rounded-xl border border-[#e1c4ad] bg-[#fff6ed] px-4 py-3 text-sm leading-6 text-[#70452d]" role="status"><strong>Frontend-only preview.</strong> These values are sample content and are not loaded from or saved to the database.</div> : null}
+    <form className="rounded-2xl border border-[#eee6e2] bg-white p-4 shadow-sm sm:p-6 lg:p-8" noValidate onChange={() => setSubmissionError(undefined)} onSubmit={submit}>
       <div className="space-y-8">
         <section aria-labelledby="event-details-heading">
           <SectionHeading number="1" title="Event Details" id="event-details-heading" />
@@ -118,11 +131,10 @@ export function EventForm({ initialValues, managementType, mode, onCancel, previ
         </section>
       </div>
 
-      <div className="mt-8 rounded-xl border border-[#e1c4ad] bg-[#fffaf5] px-4 py-3 text-xs leading-5 text-[#70452d]">Backend integration is pending. Submitting this form validates the fields but does not create or update an Event.</div>
-      {pendingNotice ? <p className="mt-4 rounded-xl border border-[#d9c9ca] bg-[#f8f2f0] px-4 py-3 text-sm text-[#671525]" role="status">The form is valid, but Event persistence is not connected yet. Your entries remain available and nothing was saved.</p> : null}
+      {submissionError ? <p className="mt-8 rounded-xl border border-[#e5b7b8] bg-[#fff2f1] px-4 py-3 text-sm text-[#8b1f2d]" role="alert">{submissionError}</p> : null}
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <button className="rounded-xl px-5 py-3 text-sm font-bold text-[#554243] hover:bg-[#f6f3f2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" onClick={onCancel} type="button">Cancel</button>
-        <button className="rounded-xl bg-[#852c3a] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#671525] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a]" type="submit">{mode === "create" ? "Create Event" : "Save Changes"}</button>
+        <button className="rounded-xl px-5 py-3 text-sm font-bold text-[#554243] hover:bg-[#f6f3f2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a] disabled:cursor-not-allowed disabled:opacity-60" disabled={isSubmitting} onClick={onCancel} type="button">Cancel</button>
+        <button className="rounded-xl bg-[#852c3a] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#671525] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#852c3a] disabled:cursor-wait disabled:opacity-70" disabled={isSubmitting} type="submit">{isSubmitting ? (mode === "create" ? "Creating Event…" : "Saving Changes…") : (mode === "create" ? "Create Event" : "Save Changes")}</button>
       </div>
     </form>
   );

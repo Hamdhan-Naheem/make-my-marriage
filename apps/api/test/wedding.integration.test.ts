@@ -26,6 +26,7 @@ let ownerId: string;
 let otherId: string;
 let ownerCookies: string;
 let otherCookies: string;
+let editableWeddingId: string;
 
 function cookiesFrom(response: Response): string {
   const header = response.headers["set-cookie"];
@@ -64,6 +65,7 @@ async function login(email: string) {
 
 describe("Wedding creation and membership isolation", { concurrency: false }, () => {
   before(async () => {
+    await prisma.event.deleteMany({ where: { createdBy: { email: { startsWith: emailPrefix } } } });
     await prisma.wedding.deleteMany({ where: { createdBy: { email: { startsWith: emailPrefix } } } });
     await prisma.user.deleteMany({ where: { email: { startsWith: emailPrefix } } });
     const [owner, other] = await Promise.all([createVerifiedUser(ownerEmail), createVerifiedUser(otherEmail)]);
@@ -73,6 +75,7 @@ describe("Wedding creation and membership isolation", { concurrency: false }, ()
   });
 
   after(async () => {
+    await prisma.event.deleteMany({ where: { createdByUserId: { in: [ownerId, otherId] } } });
     await prisma.wedding.deleteMany({ where: { createdByUserId: { in: [ownerId, otherId] } } });
     await prisma.user.deleteMany({ where: { id: { in: [ownerId, otherId] } } });
     await prisma.$disconnect();
@@ -107,7 +110,33 @@ describe("Wedding creation and membership isolation", { concurrency: false }, ()
       assert.equal(stored.members[0]?.userId, ownerId);
       assert.equal(stored.members[0]?.role, "OWNER");
       assert.equal(stored.members[0]?.isActive, true);
+      if (managementType === "JOINT") editableWeddingId = response.body.data.id as string;
     }
+  });
+
+  it("allows only an active Owner to edit names and set or clear the main date without changing Events", async () => {
+    const event = await prisma.event.create({
+      data: { weddingId: editableWeddingId, name: "Existing Event", side: "BOTH", eventDate: new Date(`${futureWeddingDate}T00:00:00.000Z`), createdByUserId: ownerId },
+    });
+    await prisma.weddingMember.create({ data: { weddingId: editableWeddingId, userId: otherId, role: "ADMIN", side: "BOTH" } });
+
+    await request(app).patch(`/api/v1/weddings/${editableWeddingId}`).set("Cookie", ownerCookies).send({ name: "No Origin" }).expect(403);
+    const forbidden = await request(app).patch(`/api/v1/weddings/${editableWeddingId}`).set("Origin", env.WEB_ORIGIN).set("Cookie", otherCookies).send({ name: "Admin Edit" }).expect(403);
+    assert.equal(forbidden.body.error.code, "WEDDING_OWNER_ACCESS_REQUIRED");
+
+    const updated = await request(app).patch(`/api/v1/weddings/${editableWeddingId}`).set("Origin", env.WEB_ORIGIN).set("Cookie", ownerCookies).send({
+      name: "Updated Wedding", brideName: "Updated Bride", groomName: "Updated Groom", mainWeddingDate: futureWeddingDate,
+    }).expect(200);
+    assert.equal(updated.body.data.name, "Updated Wedding");
+    assert.equal(updated.body.data.mainWeddingDate, futureWeddingDate);
+    assert.equal(updated.body.data.managementType, "JOINT");
+
+    await request(app).patch(`/api/v1/weddings/${editableWeddingId}`).set("Origin", env.WEB_ORIGIN).set("Cookie", ownerCookies).send({ managementType: "BRIDE_SIDE" }).expect(400);
+    const cleared = await request(app).patch(`/api/v1/weddings/${editableWeddingId}`).set("Origin", env.WEB_ORIGIN).set("Cookie", ownerCookies).send({ mainWeddingDate: null }).expect(200);
+    assert.equal(cleared.body.data.mainWeddingDate, null);
+    assert.equal((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).eventDate?.toISOString().slice(0, 10), futureWeddingDate);
+
+    await prisma.weddingMember.delete({ where: { weddingId_userId: { weddingId: editableWeddingId, userId: otherId } } });
   });
 
   it("lists only active memberships and protects wedding details", async () => {

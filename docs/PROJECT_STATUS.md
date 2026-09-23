@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, wedding workspace creation, and the Events frontend are complete.** Event persistence, password recovery, remaining business models, and third-party integrations remain pending.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, wedding workspace creation/settings, and end-to-end Events management are complete.** Password recovery, remaining business models, and third-party integrations remain pending.
 
 ## Completed milestones
 
@@ -232,24 +232,41 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Verification recorded:** the additive migration was inspected before use, applied first to the guarded `make_my_marriage_test` database, and then deployed to the development database without resetting existing data. All 28 API unit tests and 27 HTTP integration tests passed, including atomic Owner creation, active-membership isolation, optional and past-date validation, deferred-field rejection, and health regression coverage. Repository linting, type checks, and production builds passed; the build route manifest includes `/account`, `/weddings`, `/weddings/new`, and `/weddings/[weddingId]`.
 
-### Events Frontend — Completed
+### Events Management — Completed
 
-**Summary:** Added the responsive, wedding-scoped Events interface from the approved Stitch references without adding Event persistence or presenting sample content as saved data.
+**Summary:** Added PostgreSQL-backed, wedding-scoped Event creation, listing, details, and editing through the approved responsive frontend and modular Express API.
 
 **Implemented:**
 
-- Authenticated Overview, Create, Details, and Edit routes under `/weddings/:weddingId/events`, using the real selected wedding context and active Owner membership.
+- Authenticated Overview, Create, Details, and Edit routes under `/weddings/:weddingId/events`, using the selected wedding context and real saved Event data.
 - A shared responsive wedding workspace shell for the existing dashboard and Events routes, including mobile navigation, account controls, and direct Dashboard/Events navigation.
 - A reusable React Hook Form and Zod Event form with required custom names, optional description/date/times/location, same-day time validation, preserved values, and accessible errors and focus states.
-- Fixed read-only BRIDE/GROOM sides for Bride Side and Groom Side weddings; accessible BRIDE/GROOM/BOTH radios for Joint weddings, with no Create default and the previewed saved side selected during Edit.
-- Honest empty Overview and backend-pending Create/Save behavior. Details and Edit sample content is prominently labelled as fictional frontend preview data and is never stored or represented as a database record.
+- Fixed read-only BRIDE/GROOM sides for Bride Side and Groom Side weddings; accessible BRIDE/GROOM/BOTH radios for Joint weddings, with no Create default and the saved side selected during Edit.
+- Prisma `Event` storage with nullable PostgreSQL date/time and location fields, creator audit ownership, wedding/date indexes, composite wedding/Event uniqueness, and restrictive foreign keys.
+- Modular Event routes, controllers, service, repository, and Zod schemas for `POST/GET /weddings/:weddingId/events` and `GET/PATCH /weddings/:weddingId/events/:eventId`.
+- Backend enforcement of active Owner membership, trusted-origin writes, Event Side rules, same-day scheduling, strict supported fields, and resource queries scoped by both wedding and Event IDs.
+- Real empty and populated Overview states, API-backed Details and Edit loading/error states, saved-data navigation, and terminal-session redirect handling.
 
 **Important implementation notes:**
 
-- This milestone is frontend-only. Event Prisma models, migrations, APIs, persistence, and backend Owner/side enforcement remain pending.
-- No Stitch simulator controls or scripts were copied into production code. Other wedding roles remain unavailable until the approved capability and assignment infrastructure exists.
+- Event deletion, budgets, coordinates, and related tasks, guests, vendors, documents, and expenses remain outside this milestone.
+- Owner-only access is the approved initial backend policy. The long-term Admin, Family Member, and Collaborator role model remains unchanged and requires capability, side, and explicit assignment infrastructure before those roles receive Event access.
+- No Stitch simulator controls or scripts were copied into production code.
 
-**Verification recorded:** five focused Event validation tests passed. Frontend linting, type checking, and the production build passed; the route manifest includes Overview, Create, Details, and Edit Event routes.
+**Verification recorded:** migration `20260923135614_add_events` contains only additive Event table, index, and foreign-key operations and is applied to both isolated test and development databases. Event unit and HTTP integration coverage verifies Create → List → Get → Edit, optional scheduling, side rules, Owner-only access, trusted-origin writes, and cross-wedding isolation. Repository regression tests, linting, type checking, and production builds passed.
+
+### Wedding Settings — Completed
+
+**Summary:** Added Owner-only editing for wedding workspace names, couple names, and the optional main wedding date without changing wedding type, membership, or Event schedules.
+
+**Implemented:**
+
+- `PATCH /api/v1/weddings/:weddingId` with strict shared Zod validation, trusted-origin enforcement, active Owner checks, and an Owner-scoped database update.
+- Responsive `/weddings/:weddingId/settings` UI using the existing workspace shell, real wedding data, accessible validation, loading/error/success states, and a read-only management type.
+- Wedding Settings navigation from the existing authenticated workspace on desktop and mobile.
+- Setting, changing, and clearing `mainWeddingDate`; Event dates remain independent and unchanged.
+
+**Verification recorded:** focused shared validation, service, HTTP integration, and frontend form-schema tests passed. Repository linting, type checking, regression tests, and production builds passed. No schema migration was required because the approved nullable wedding-date column already existed.
 
 ## Features in progress
 
@@ -262,7 +279,7 @@ The following approved MVP areas are planned but not implemented:
 - Remaining approved business database models and migrations
 - Forgot Password, Reset Password, and the password-reset database model
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
-- Event database/API integration; tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
+- Tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
 - Redux Toolkit business state, remaining API integrations, private Amazon S3 documents, and MVP deployment infrastructure
 
 ## Important implementation notes

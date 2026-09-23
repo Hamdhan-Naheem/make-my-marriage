@@ -6,7 +6,7 @@ import type { WeddingManagementType, WeddingMemberRole, WeddingSide } from "@mak
 import { BrandMark } from "@/components/brand/brand-mark";
 import { DashboardAccountMenu } from "@/components/weddings/dashboard/dashboard-account-menu";
 
-type WorkspaceNavigationItem = "Dashboard" | "Events";
+type WorkspaceNavigationItem = "Dashboard" | "Events" | "Settings";
 
 export type WeddingWorkspaceShellData = {
   weddingId?: string;
@@ -50,6 +50,7 @@ export function WeddingWorkspaceShell({ activeItem, children, data, headerAction
   const mobileNavigationRef = useRef<HTMLElement>(null);
   const dashboardHref = data.weddingId ? `/weddings/${data.weddingId}` : undefined;
   const eventsHref = data.weddingId ? `/weddings/${data.weddingId}/events` : undefined;
+  const settingsHref = data.weddingId && data.memberRole === "OWNER" ? `/weddings/${data.weddingId}/settings` : undefined;
 
   const closeMobileNavigation = useCallback((restoreFocus = true) => {
     setMenuOpen(false);
@@ -80,7 +81,7 @@ export function WeddingWorkspaceShell({ activeItem, children, data, headerAction
           </ul>
         </nav>
         <p className="px-5 pb-2 pt-5 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#887273]">Coordination</p>
-        <div className="space-y-1 px-3 text-sm font-semibold text-[#554243]"><p className="rounded-lg px-3 py-2.5">Members & Permissions</p><p className="rounded-lg px-3 py-2.5">Wedding Settings</p></div>
+        <div className="space-y-1 px-3 text-sm font-semibold text-[#554243]"><p className="rounded-lg px-3 py-2.5">Members & Permissions</p><WorkspaceLink active={activeItem === "Settings"} href={settingsHref}>Wedding Settings</WorkspaceLink></div>
       </div>
       <div className="border-t border-[#ece3df] bg-[#f6f3f2] p-4">
         <div className="flex items-center gap-3 rounded-xl bg-white p-3">

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getSriLankaTodayDate } from "@make-my-marriage/shared";
 import { RequestValidationError } from "../src/shared/errors.js";
-import { parseCreateWeddingRequest, parseWeddingId } from "../src/modules/weddings/wedding.schema.js";
+import { parseCreateWeddingRequest, parseUpdateWeddingRequest, parseWeddingId } from "../src/modules/weddings/wedding.schema.js";
 
 const validRequest = {
   name: "  Ahamed & Fathima Wedding  ",
@@ -56,5 +56,12 @@ describe("wedding request validation", () => {
   it("validates wedding IDs", () => {
     assert.equal(parseWeddingId({ weddingId: "11111111-1111-4111-8111-111111111111" }), "11111111-1111-4111-8111-111111111111");
     assert.throws(() => parseWeddingId({ weddingId: "not-a-uuid" }), RequestValidationError);
+  });
+
+  it("validates Owner-editable settings and rejects management type changes", () => {
+    assert.deepEqual(parseUpdateWeddingRequest({ name: "  Updated Wedding  ", mainWeddingDate: null }), { name: "Updated Wedding", mainWeddingDate: null });
+    assert.throws(() => parseUpdateWeddingRequest({}), RequestValidationError);
+    assert.throws(() => parseUpdateWeddingRequest({ managementType: "BRIDE_SIDE" }), RequestValidationError);
+    assert.throws(() => parseUpdateWeddingRequest({ mainWeddingDate: "2027-02-30" }), RequestValidationError);
   });
 });

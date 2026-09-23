@@ -1,4 +1,4 @@
-import type { CreateWeddingRequest, WeddingWorkspace } from "@make-my-marriage/shared";
+import type { CreateWeddingRequest, UpdateWeddingRequest, WeddingWorkspace } from "@make-my-marriage/shared";
 import { WeddingNotFoundError } from "../../shared/errors.js";
 import type { WeddingRecord, WeddingRepository } from "./wedding.repository.js";
 
@@ -46,5 +46,15 @@ export class WeddingService {
     if (!wedding) throw new WeddingNotFoundError();
     return toWorkspace(wedding);
   }
-}
 
+  async updateForOwner(weddingId: string, userId: string, input: UpdateWeddingRequest): Promise<WeddingWorkspace> {
+    const wedding = await this.repository.updateForActiveOwner(weddingId, userId, {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.brideName !== undefined ? { brideName: input.brideName } : {}),
+      ...(input.groomName !== undefined ? { groomName: input.groomName } : {}),
+      ...(input.mainWeddingDate !== undefined ? { mainWeddingDate: parseDateOnly(input.mainWeddingDate) } : {}),
+    });
+    if (!wedding) throw new WeddingNotFoundError();
+    return toWorkspace(wedding);
+  }
+}

@@ -10,8 +10,8 @@ import { EventsOverview } from "@/components/events/events-overview";
 import { WeddingWorkspaceShell } from "@/components/weddings/dashboard/wedding-workspace-shell";
 import { ApiError, getWedding } from "@/lib/api";
 import { clearCurrentWeddingId, setCurrentWeddingId } from "@/lib/wedding-selection";
-import { signedOut } from "@/store/auth-slice";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useTerminalAuthRedirect } from "@/lib/use-terminal-auth-redirect";
+import { useAppSelector } from "@/store/hooks";
 
 export type EventsWeddingContext = {
   wedding: WeddingWorkspace;
@@ -27,8 +27,8 @@ type EventsWeddingGateProps = {
 );
 
 export function EventsWeddingGate({ eventId, returnTo, view, weddingId }: EventsWeddingGateProps) {
-  const dispatch = useAppDispatch();
   const router = useRouter();
+  const handleTerminalAuth = useTerminalAuthRedirect(returnTo);
   const user = useAppSelector((state) => state.auth.user);
   const [requestState, setRequestState] = useState<{ weddingId: string; wedding?: WeddingWorkspace; error?: string }>({ weddingId });
   const wedding = requestState.weddingId === weddingId ? requestState.wedding : undefined;
@@ -50,14 +50,13 @@ export function EventsWeddingGate({ eventId, returnTo, view, weddingId }: Events
           return;
         }
         if (requestError instanceof ApiError && requestError.status === 401) {
-          dispatch(signedOut());
-          router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+          handleTerminalAuth(requestError);
           return;
         }
         setRequestState({ weddingId, error: "This wedding workspace could not be loaded. Please try again." });
       });
     return () => { active = false; };
-  }, [dispatch, returnTo, router, weddingId]);
+  }, [handleTerminalAuth, router, weddingId]);
 
   if (!user || !wedding) return <CenteredEventStatus error={error} />;
 

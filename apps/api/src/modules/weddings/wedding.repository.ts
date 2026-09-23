@@ -21,10 +21,18 @@ export type CreateWeddingRecord = {
   creatorSide: WeddingSide;
 };
 
+export type UpdateWeddingRecord = {
+  name?: string;
+  brideName?: string;
+  groomName?: string;
+  mainWeddingDate?: Date | null;
+};
+
 export interface WeddingRepository {
   createWithOwner(input: CreateWeddingRecord): Promise<WeddingRecord>;
   listForActiveMember(userId: string): Promise<WeddingRecord[]>;
   findForActiveMember(weddingId: string, userId: string): Promise<WeddingRecord | null>;
+  updateForActiveOwner(weddingId: string, userId: string, input: UpdateWeddingRecord): Promise<WeddingRecord | null>;
 }
 
 const weddingSelection = {
@@ -104,5 +112,13 @@ export class PrismaWeddingRepository implements WeddingRepository {
     const { members, ...workspace } = wedding;
     return { ...workspace, member: members[0] };
   }
-}
 
+  async updateForActiveOwner(weddingId: string, userId: string, input: UpdateWeddingRecord): Promise<WeddingRecord | null> {
+    const result = await prisma.wedding.updateMany({
+      where: { id: weddingId, archivedAt: null, members: { some: { userId, isActive: true, role: "OWNER" } } },
+      data: input,
+    });
+    if (result.count !== 1) return null;
+    return this.findForActiveMember(weddingId, userId);
+  }
+}

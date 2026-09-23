@@ -513,6 +513,9 @@ PATCH  /api/weddings/:id
 GET    /api/weddings/:id/events
 POST   /api/weddings/:id/events
 
+GET    /api/weddings/:id/tasks
+POST   /api/weddings/:id/tasks
+
 GET    /api/weddings/:id/guests
 POST   /api/weddings/:id/guests
 
@@ -721,7 +724,7 @@ Authorization is enforced in Express using active wedding membership, role, perm
 
 Use four small relational access tables, defined in Database Design Section 17.1: `member_event_access`, `member_task_access`, `member_vendor_access`, and `member_document_access`. Each connects a WeddingMember to one resource with foreign keys and same-wedding constraints. Permission flags remain in `wedding_member_permissions`; resource access rows do not grant capabilities.
 
-An event assignment does not automatically grant access to related tasks, vendors, documents, guests, or expenses. Task responsibility (`assigned_member_id`) does not replace an explicit task access assignment for a Collaborator.
+An event assignment does not automatically grant access to related tasks, vendors, documents, guests, or expenses. When member responsibility is introduced later, it will not replace an explicit task access assignment for a Collaborator.
 
 Apply the same checks to direct reads, writes, lists, search, nested relations, selectors, counts, and dashboard summaries. Filter before pagination and aggregation. Validate access to referenced resources when linking records. A resource assignment never bypasses side or financial restrictions.
 
@@ -744,6 +747,20 @@ Omit unauthorized financial fields from wedding, event, vendor, dashboard, list,
 Mixed update requests must validate every changed field before any write. General wedding/event editing cannot change `budgetAmount` without `BUDGET_MANAGE`. The same rules apply to financial values supplied at creation.
 
 The frontend may hide unavailable actions, but it is never the authorization boundary.
+
+The initial Events implementation intentionally permits only active Owners to list, view, create, and edit Events. Express verifies the authenticated Session, loads active wedding membership, checks the Owner role, and scopes every Event lookup by both `wedding_id` and Event ID. Other roles remain disabled until their capability, side, and explicit assignment checks are implemented.
+
+## Initial Task Planner Architecture
+
+The Task Planner uses one wedding-scoped Task resource. A Task belongs to one Wedding and may optionally link to one Event in that same Wedding. The main planner reads the wedding's complete Task collection; Event creation and Event Details use the same Task records rather than a separate event-task system.
+
+Tasks can be created directly through the Task module or included optionally while creating an Event. Event creation with initial Tasks is one transaction so an invalid Task or failed Task write does not leave a partially created Event. Any supplied or updated `eventId` must be resolved with both the Event ID and route Wedding ID.
+
+The initial Task Planner permits only authenticated active Owners to list, view, create, update, complete, reopen, and delete Tasks. Express performs the existing Session, active-membership, Owner-role, and wedding-scoping checks. Admin, Family Member, and Collaborator Task access and member assignment remain deferred until capability, side, and explicit Task-assignment infrastructure is implemented.
+
+The API records `completedAt` when status changes to `COMPLETED` and clears it when a Task is reopened to `TO_DO`. The frontend requires explicit confirmation before deletion. Task sides must be valid for the Wedding management type. Compatibility between a linked Event's side and its Task's side remains an unresolved product rule and must not be inferred during implementation.
+
+The Task Planner excludes reminders, priorities, subtasks, attachments, and other project-management features outside the approved scope.
 ---
 
 # 19. Authentication Architecture
@@ -2016,6 +2033,6 @@ The MVP therefore prioritizes understandable code, clear module boundaries, secu
 
 # 59. Implementation-Stage Questions
 
-The six implementation-stage groups remain recorded in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
+The six existing implementation-stage groups remain recorded in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details. That section also records the unresolved Event Side-to-Task Side compatibility decision for linked Tasks.
 
 Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session that rotation does not extend, a 24-hour single-use email-verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. Concurrent refresh and stale-token reuse use the Section 24 behavior. Cookie-setting and cookie-changing authentication requests require an exact trusted `WEB_ORIGIN`; cookies use SameSite=Lax and become Secure in production. Upload completion/failure handling, domain/HTTPS, and production secret management remain open. Logout-all remains optional. None of these questions weaken the finalized access or financial-security rules.

@@ -1,11 +1,18 @@
 import {
   API_BASE_PATH,
+  eventListResponseSchema,
+  eventResponseSchema,
   createWeddingResponseSchema,
   healthResponseSchema,
   weddingDetailResponseSchema,
   weddingListResponseSchema,
   type CreateWeddingRequest,
+  type CreateEventRequest,
+  type UpdateEventRequest,
+  type UpdateWeddingRequest,
   type WeddingWorkspace,
+  type WeddingEvent,
+  type WeddingSide,
 } from "@make-my-marriage/shared";
 
 export type SafeUser = {
@@ -173,4 +180,44 @@ export async function getWedding(weddingId: string): Promise<WeddingWorkspace> {
   const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}`);
   if (!response.ok) throw await parseError(response);
   return weddingDetailResponseSchema.parse(await response.json()).data;
+}
+
+export async function updateWedding(weddingId: string, input: UpdateWeddingRequest): Promise<WeddingWorkspace> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseError(response);
+  return weddingDetailResponseSchema.parse(await response.json()).data;
+}
+
+export async function createEvent(weddingId: string, input: CreateEventRequest): Promise<WeddingEvent> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/events`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseError(response);
+  return eventResponseSchema.parse(await response.json()).data;
+}
+
+export async function listEvents(weddingId: string, side?: WeddingSide): Promise<WeddingEvent[]> {
+  const query = side ? `?side=${encodeURIComponent(side)}` : "";
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/events${query}`);
+  if (!response.ok) throw await parseError(response);
+  return eventListResponseSchema.parse(await response.json()).data;
+}
+
+export async function getEvent(weddingId: string, eventId: string): Promise<WeddingEvent> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/events/${encodeURIComponent(eventId)}`);
+  if (!response.ok) throw await parseError(response);
+  return eventResponseSchema.parse(await response.json()).data;
+}
+
+export async function updateEvent(weddingId: string, eventId: string, input: UpdateEventRequest): Promise<WeddingEvent> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/events/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseError(response);
+  return eventResponseSchema.parse(await response.json()).data;
 }

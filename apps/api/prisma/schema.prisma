@@ -21,6 +21,7 @@ model User {
   sessions               Session[]
   emailVerificationToken EmailVerificationToken?
   createdWeddings        Wedding[]               @relation("WeddingCreator")
+  createdEvents          Event[]                 @relation("EventCreator")
   weddingMemberships     WeddingMember[]
 
   @@map("users")
@@ -65,6 +66,7 @@ model Wedding {
 
   createdBy User            @relation("WeddingCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   members   WeddingMember[]
+  events    Event[]
 
   @@index([createdByUserId])
   @@map("weddings")
@@ -89,6 +91,31 @@ model WeddingMember {
   @@index([weddingId])
   @@index([userId])
   @@map("wedding_members")
+}
+
+model Event {
+  id              String      @id @default(uuid()) @db.Uuid
+  weddingId       String      @map("wedding_id") @db.Uuid
+  name            String      @db.VarChar(120)
+  description     String?     @db.VarChar(1000)
+  side            WeddingSide
+  eventDate       DateTime?   @map("event_date") @db.Date
+  startTime       DateTime?   @map("start_time") @db.Time(0)
+  endTime         DateTime?   @map("end_time") @db.Time(0)
+  venueName       String?     @map("venue_name") @db.VarChar(160)
+  address         String?     @db.VarChar(500)
+  createdByUserId String      @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Restrict)
+  createdBy User    @relation("EventCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([weddingId, id])
+  @@index([weddingId])
+  @@index([weddingId, eventDate])
+  @@index([createdByUserId])
+  @@map("events")
 }
 
 model Session {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateOnlySchema, type WeddingManagementType, type WeddingSide } from "@make-my-marriage/shared";
+import { dateOnlySchema, type CreateEventRequest, type WeddingEvent, type WeddingManagementType, type WeddingSide } from "@make-my-marriage/shared";
 
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -33,4 +33,30 @@ export function eventSideForWedding(managementType: WeddingManagementType): Wedd
 export function enforceWeddingEventSide(values: EventFormValues, managementType: WeddingManagementType): EventFormValues {
   const fixedSide = eventSideForWedding(managementType);
   return fixedSide ? { ...values, side: fixedSide } : values;
+}
+
+export function toEventRequest(values: EventFormValues): CreateEventRequest {
+  return {
+    name: values.name,
+    description: values.description || null,
+    side: values.side,
+    eventDate: values.eventDate || null,
+    startTime: values.startTime || null,
+    endTime: values.endTime || null,
+    venueName: values.venueName || null,
+    address: values.address || null,
+  };
+}
+
+export function eventToFormValues(event: WeddingEvent): EventFormValues {
+  return {
+    name: event.name,
+    description: event.description ?? "",
+    side: event.side,
+    eventDate: event.eventDate ?? "",
+    startTime: event.startTime ?? "",
+    endTime: event.endTime ?? "",
+    venueName: event.venueName ?? "",
+    address: event.address ?? "",
+  };
 }
