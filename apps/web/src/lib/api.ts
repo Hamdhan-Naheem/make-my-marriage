@@ -2,6 +2,8 @@ import {
   API_BASE_PATH,
   eventListResponseSchema,
   eventResponseSchema,
+  taskListResponseSchema,
+  taskResponseSchema,
   createWeddingResponseSchema,
   healthResponseSchema,
   weddingDetailResponseSchema,
@@ -10,6 +12,10 @@ import {
   type CreateEventRequest,
   type UpdateEventRequest,
   type UpdateWeddingRequest,
+  type CreateTaskRequest,
+  type UpdateTaskRequest,
+  type TaskStatus,
+  type WeddingTask,
   type WeddingWorkspace,
   type WeddingEvent,
   type WeddingSide,
@@ -220,4 +226,54 @@ export async function updateEvent(weddingId: string, eventId: string, input: Upd
   });
   if (!response.ok) throw await parseError(response);
   return eventResponseSchema.parse(await response.json()).data;
+}
+
+export type TaskListOptions = {
+  status?: TaskStatus;
+  side?: WeddingSide;
+  eventId?: string;
+  page?: number;
+  limit?: number;
+};
+
+export async function listTasks(weddingId: string, options: TaskListOptions = {}) {
+  const query = new URLSearchParams();
+  if (options.status) query.set("status", options.status);
+  if (options.side) query.set("side", options.side);
+  if (options.eventId) query.set("eventId", options.eventId);
+  query.set("page", String(options.page ?? 1));
+  query.set("limit", String(options.limit ?? 20));
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/tasks?${query}`);
+  if (!response.ok) throw await parseError(response);
+  const body = taskListResponseSchema.parse(await response.json());
+  return { tasks: body.data, meta: body.meta };
+}
+
+export async function createTask(weddingId: string, input: CreateTaskRequest): Promise<WeddingTask> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/tasks`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseError(response);
+  return taskResponseSchema.parse(await response.json()).data;
+}
+
+export async function getTask(weddingId: string, taskId: string): Promise<WeddingTask> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/tasks/${encodeURIComponent(taskId)}`);
+  if (!response.ok) throw await parseError(response);
+  return taskResponseSchema.parse(await response.json()).data;
+}
+
+export async function updateTask(weddingId: string, taskId: string, input: UpdateTaskRequest): Promise<WeddingTask> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/tasks/${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseError(response);
+  return taskResponseSchema.parse(await response.json()).data;
+}
+
+export async function deleteTask(weddingId: string, taskId: string): Promise<void> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/tasks/${encodeURIComponent(taskId)}`, { method: "DELETE" });
+  if (!response.ok) throw await parseError(response);
 }

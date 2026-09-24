@@ -6,7 +6,7 @@ import type { WeddingManagementType, WeddingMemberRole, WeddingSide } from "@mak
 import { BrandMark } from "@/components/brand/brand-mark";
 import { DashboardAccountMenu } from "@/components/weddings/dashboard/dashboard-account-menu";
 
-type WorkspaceNavigationItem = "Dashboard" | "Events" | "Settings";
+type WorkspaceNavigationItem = "Dashboard" | "Events" | "Tasks" | "Settings";
 
 export type WeddingWorkspaceShellData = {
   weddingId?: string;
@@ -18,7 +18,6 @@ export type WeddingWorkspaceShellData = {
 };
 
 const futureNavigation = [
-  "Tasks",
   "Guests",
   "Invitations & RSVP",
   "Budget & Expenses",
@@ -50,6 +49,7 @@ export function WeddingWorkspaceShell({ activeItem, children, data, headerAction
   const mobileNavigationRef = useRef<HTMLElement>(null);
   const dashboardHref = data.weddingId ? `/weddings/${data.weddingId}` : undefined;
   const eventsHref = data.weddingId ? `/weddings/${data.weddingId}/events` : undefined;
+  const tasksHref = data.weddingId && data.memberRole === "OWNER" ? `/weddings/${data.weddingId}/tasks` : undefined;
   const settingsHref = data.weddingId && data.memberRole === "OWNER" ? `/weddings/${data.weddingId}/settings` : undefined;
 
   const closeMobileNavigation = useCallback((restoreFocus = true) => {
@@ -77,6 +77,7 @@ export function WeddingWorkspaceShell({ activeItem, children, data, headerAction
           <ul className="space-y-1 px-3">
             <li><WorkspaceLink active={activeItem === "Dashboard"} href={dashboardHref}>Dashboard</WorkspaceLink></li>
             <li><WorkspaceLink active={activeItem === "Events"} href={eventsHref}>Events</WorkspaceLink></li>
+            <li><WorkspaceLink active={activeItem === "Tasks"} href={tasksHref}>Tasks</WorkspaceLink></li>
             {futureNavigation.map((item) => <li key={item}><WorkspaceLink active={false}>{item}</WorkspaceLink></li>)}
           </ul>
         </nav>

@@ -1290,7 +1290,7 @@ Status:
 
 Only `name` and `side` are required. Description, date, times, venue, and address are optional and may be `null`. A date can exist without times; times require a date; an end time requires a start time and must be later on the same day. Bride Side weddings accept only `BRIDE`, Groom Side weddings accept only `GROOM`, and Joint weddings accept `BRIDE`, `GROOM`, or `BOTH`.
 
-The Event creation request may also include an optional `tasks` array using the Task creation fields in Section 44, except `eventId` because the new Event supplies that relationship. Creating the Event and all included Tasks is atomic. An empty or omitted array creates no Tasks. The unresolved Event Side-to-Task Side compatibility rule must be finalized before this request extension is implemented; no side may be inferred from the Event.
+The Event creation request may also include an optional `tasks` array using the Task creation fields in Section 44, except `eventId` because the new Event supplies that relationship. Creating the Event and all included Tasks is atomic. An empty or omitted array creates no Tasks. Validate every supplied Task against the Event side: `BRIDE` accepts only `BRIDE`, `GROOM` accepts only `GROOM`, and `BOTH` accepts `BRIDE`, `GROOM`, or `BOTH`. Reject the entire request if any Task is incompatible; do not infer or rewrite Task sides.
 
 Event budgets, coordinates, and other unrelated fields are rejected in this milestone. When Event budgets are implemented, supplying `budgetAmount` will require `BUDGET_MANAGE` in addition to Event authorization.
 
@@ -1322,6 +1322,8 @@ Example:
 ```
 
 Updates are partial but must contain at least one supported Event field. The backend merges a partial update with the saved Event before enforcing side and same-day schedule rules. Event IDs are queried together with the wedding ID, so an Event from another wedding is returned as not found.
+
+When an update changes the Event side, validate all linked Tasks against the proposed side. Reject the Event update if any linked Task would become incompatible. The caller must update or unlink those Tasks first; this endpoint does not change Task sides automatically.
 
 Changing `budgetAmount` remains unavailable. When implemented, it will require `BUDGET_MANAGE` in addition to event/resource authorization. A general event-management permission is insufficient. Reject mixed requests containing unauthorized fields before any write; omit budget values from the response without `BUDGET_VIEW`.
 
@@ -1359,7 +1361,7 @@ The Task API is the one shared interface for wedding-wide and optionally Event-l
 
 For the initial Task Planner milestone, every Task endpoint requires an authenticated active `OWNER` membership in the selected Wedding. Admin, Family Member, Collaborator, member assignment, and explicit Task-access behavior remain deferred. This restriction does not replace the approved long-term model in which Collaborators require both the relevant capability and an explicit `member_task_access` row.
 
-All Task queries use both `weddingId` and `taskId`. Any linked `eventId` is resolved within the route Wedding, preventing cross-wedding links. Task sides follow the Wedding type: Bride Side permits `BRIDE`, Groom Side permits `GROOM`, and Joint permits `BRIDE`, `GROOM`, or `BOTH`. Event Side-to-Task Side compatibility is unresolved and must not be inferred.
+All Task queries use both `weddingId` and `taskId`. Any linked `eventId` is resolved within the route Wedding, preventing cross-wedding links. Task sides follow the Wedding type: Bride Side permits `BRIDE`, Groom Side permits `GROOM`, and Joint permits `BRIDE`, `GROOM`, or `BOTH`. Wedding-wide Tasks require only this rule. Event-linked Tasks must also match strict compatibility: `BRIDE` Event to `BRIDE` Task, `GROOM` Event to `GROOM` Task, and `BOTH` Event to `BRIDE`, `GROOM`, or `BOTH` Task.
 
 ---
 
@@ -1403,6 +1405,8 @@ Request:
 
 `name` and `side` are required. `description`, `dueDate`, and `eventId` are optional and may be `null`. The server creates the Task as `TO_DO` with `completedAt: null`; clients cannot set completion metadata during creation. Member assignment, reminders, priorities, subtasks, and attachments are rejected as unsupported fields.
 
+When `eventId` is supplied, validate both same-Wedding ownership and Event-to-Task side compatibility before creating the Task.
+
 Status:
 
 ```text
@@ -1436,6 +1440,8 @@ Example:
 ```
 
 Updates are partial but must include at least one supported Task field: `name`, `description`, `side`, `dueDate`, `eventId`, or `status`. Setting `eventId` to `null` makes the Task wedding-wide. Linking another Event requires that Event to belong to the route Wedding.
+
+After merging the update with the saved Task, revalidate wedding-type side rules and Event-to-Task side compatibility whenever `eventId` or `side` changes. Reject an incompatible update without modifying the Task.
 
 Changing status to `COMPLETED` records `completedAt` on the server. Changing it back to `TO_DO` reopens the Task and clears `completedAt`. Clients cannot write `completedAt` directly. Name remains required after merging a partial update with the saved Task.
 
@@ -3098,7 +3104,7 @@ This API design directly supports the approved PRD, database design, and system 
 
 # 106. Implementation-Stage Questions
 
-Retain the six existing groups in [PRD Section 41](PRD.md#41-implementation-stage-questions) as open questions: guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details. Also retain the Task-specific Event Side-to-Task Side compatibility question in that section until explicitly resolved.
+Retain the six groups in [PRD Section 41](PRD.md#41-implementation-stage-questions) as open questions: guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
 
 In particular, invitation regeneration/storage and later resharing, inactive-member reinvitation, currency/decimal/overpayment rules, group-versus-person counting and cross-event totals, and reduced invited counts are not finalized here. Dashboard outstanding-payment/vendor details, payer summaries, Google Places View Details, and typed-location lookup contracts still need completion within approved scope.
 

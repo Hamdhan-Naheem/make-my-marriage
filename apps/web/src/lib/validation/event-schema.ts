@@ -12,6 +12,12 @@ export const eventFormSchema = z.object({
   endTime: z.string().refine((value) => value === "" || timePattern.test(value), "Enter a valid end time."),
   venueName: z.string().trim().max(160, "Use 160 characters or fewer."),
   address: z.string().trim().max(500, "Use 500 characters or fewer."),
+  tasks: z.array(z.object({
+    name: z.string().trim().min(1, "Enter a task name.").max(140, "Use 140 characters or fewer."),
+    description: z.string().trim().max(1000, "Use 1,000 characters or fewer."),
+    side: z.enum(["BRIDE", "GROOM", "BOTH"], { error: "Choose a Task Side." }),
+    dueDate: z.string().refine((value) => value === "" || dateOnlySchema.safeParse(value).success, "Enter a valid due date."),
+  }).strict()).max(50, "Add no more than 50 Tasks while creating an Event."),
 }).strict().superRefine((value, context) => {
   if ((value.startTime || value.endTime) && !value.eventDate) {
     context.addIssue({ code: "custom", message: "Add an event date before adding times.", path: ["eventDate"] });
@@ -22,6 +28,11 @@ export const eventFormSchema = z.object({
   if (value.startTime && value.endTime && value.endTime <= value.startTime) {
     context.addIssue({ code: "custom", message: "End time must be later than start time on the same day.", path: ["endTime"] });
   }
+  value.tasks.forEach((task, index) => {
+    if (value.side !== "BOTH" && task.side !== value.side) {
+      context.addIssue({ code: "custom", message: `This Task must use ${value.side === "BRIDE" ? "Bride Side" : "Groom Side"}.`, path: ["tasks", index, "side"] });
+    }
+  });
 });
 
 export type EventFormValues = z.infer<typeof eventFormSchema>;
@@ -45,6 +56,7 @@ export function toEventRequest(values: EventFormValues): CreateEventRequest {
     endTime: values.endTime || null,
     venueName: values.venueName || null,
     address: values.address || null,
+    ...(values.tasks.length > 0 ? { tasks: values.tasks.map((task) => ({ name: task.name, description: task.description || null, side: task.side, dueDate: task.dueDate || null })) } : {}),
   };
 }
 
@@ -58,5 +70,6 @@ export function eventToFormValues(event: WeddingEvent): EventFormValues {
     endTime: event.endTime ?? "",
     venueName: event.venueName ?? "",
     address: event.address ?? "",
+    tasks: [],
   };
 }

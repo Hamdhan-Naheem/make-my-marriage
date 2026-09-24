@@ -5,8 +5,9 @@ import type {
   WeddingEvent,
   WeddingSide,
 } from "@make-my-marriage/shared";
-import { EventNotFoundError, RequestValidationError } from "../../shared/errors.js";
-import type { EventRecord, EventRepository, EventWriteRecord } from "./event.repository.js";
+import { EventNotFoundError, EventSideTaskConflictError, RequestValidationError } from "../../shared/errors.js";
+import type { EventDraftTaskWriteRecord, EventRecord, EventRepository, EventWriteRecord } from "./event.repository.js";
+import { isTaskSideAllowedForEvent } from "../tasks/task.rules.js";
 
 function parseDateOnly(value: string | null | undefined): Date | null {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
@@ -84,7 +85,18 @@ export class EventService {
     validateSide(input.side, managementType);
     const schedule = { eventDate: input.eventDate ?? null, startTime: input.startTime ?? null, endTime: input.endTime ?? null };
     validateSchedule(schedule);
-    return toEvent(await this.repository.create({ ...toWriteRecord(weddingId, input), createdByUserId: userId }));
+    const tasks: EventDraftTaskWriteRecord[] = (input.tasks ?? []).map((task, index) => {
+      if (!isTaskSideAllowedForEvent(task.side, input.side)) {
+        throw new RequestValidationError({ [`tasks.${index}.side`]: [`Task Side ${task.side} is not compatible with this ${input.side} Event.`] });
+      }
+      return {
+        name: task.name,
+        description: task.description || null,
+        side: task.side,
+        dueDate: parseDateOnly(task.dueDate),
+      };
+    });
+    return toEvent(await this.repository.create({ ...toWriteRecord(weddingId, input), createdByUserId: userId }, tasks));
   }
 
   async list(weddingId: string, side?: WeddingSide): Promise<WeddingEvent[]> {
@@ -113,6 +125,9 @@ export class EventService {
     };
     validateSide(merged.side, managementType);
     validateSchedule(merged);
+    if (merged.side !== currentEvent.side && await this.repository.hasIncompatibleTasks(weddingId, eventId, merged.side)) {
+      throw new EventSideTaskConflictError();
+    }
     return toEvent(await this.repository.update(weddingId, eventId, toWriteRecord(weddingId, merged)));
   }
 }

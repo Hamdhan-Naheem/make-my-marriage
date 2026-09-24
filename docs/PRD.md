@@ -571,7 +571,9 @@ Tasks can also belong directly to the wedding without being assigned to a specif
 
 Completing a task records its completion timestamp. Reopening it returns the status to To Do and clears that timestamp. Deleting a task requires explicit user confirmation.
 
-Task sides follow the wedding type: Bride Side weddings allow `BRIDE`, Groom Side weddings allow `GROOM`, and Joint weddings allow `BRIDE`, `GROOM`, or `BOTH`. The compatibility rule between the side of an Event and the side of a linked Task is not yet decided and must be resolved before implementation; the system must not silently infer one.
+Task sides follow the wedding type: Bride Side weddings allow `BRIDE`, Groom Side weddings allow `GROOM`, and Joint weddings allow `BRIDE`, `GROOM`, or `BOTH`. Wedding-wide Tasks use only this wedding-type rule. Event-linked Tasks also follow strict compatibility: a `BRIDE` Event permits only `BRIDE` Tasks, a `GROOM` Event permits only `GROOM` Tasks, and a `BOTH` Event permits `BRIDE`, `GROOM`, or `BOTH` Tasks.
+
+Validate compatibility when an Event is created with Tasks and whenever a Task's Event or side changes. If changing an Event's side would make an existing linked Task incompatible, reject the Event update until those Tasks are changed or unlinked.
 
 For the initial Task Planner milestone, only active Owners can list, view, create, update, complete, reopen, and delete tasks. Member assignment and access for Admin, Family Member, and Collaborator roles remain later work under the approved capability, side, and explicit-assignment model.
 
@@ -1461,7 +1463,7 @@ The MVP should deliver a complete and practical wedding planning experience with
 
 # 41. Implementation-Stage Questions
 
-The following six existing groups and the Task-specific compatibility decision remain open. Existing examples illustrate workflows, not final answers to these questions. Resolve each before implementing the affected behavior; do not silently add requirements or expand the MVP.
+The following six groups remain open. Existing examples illustrate workflows, not final answers to these questions. Resolve each before implementing the affected behavior; do not silently add requirements or expand the MVP.
 
 1. **Guest invitation persistence and sharing:** Should regeneration update one current invitation row or retain historical rows with one active invitation? How will database uniqueness express that choice? How can organizers share again after leaving the creation screen when only a token hash is stored and the raw token cannot be retrieved?
 2. **Member invitation lifecycle:** How should expired invitations, resend/cancellation, and reinviting inactive members work while respecting the unique wedding/user membership constraint?
@@ -1469,6 +1471,5 @@ The following six existing groups and the Task-specific compatibility decision r
 4. **Guest and RSVP statistics:** Which values count invitation groups versus people? How should wedding-wide totals handle guests invited to multiple events? What happens if an invited count is reduced below an existing RSVP?
 5. **Incomplete API contracts within approved features:** Finalize dashboard outstanding-payment and vendor-payment details, payer summaries, Google Places View Details, and conversion of a typed location into coordinates. Do not add features beyond the approved workflows.
 6. **Lifecycle and operational details:** Define archived-wedding access, dependent-record deletion, upload types/sizes and confirmation checks, S3/database failure handling, domain/HTTPS, and production secret management. Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session that rotation does not extend, a 24-hour single-use email-verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. One atomic refresh wins; a losing request inside a five-second concurrency window receives a non-revoking conflict, while later stale-token reuse revokes the Session. Cookie-changing authentication routes require the exact trusted web Origin. Logout-all remains optional until explicitly selected.
-7. **Event Side and Task Side compatibility:** For a Task linked to an Event in a Joint wedding, must its side match the Event side, may `BOTH` link to either single-side Event, or are Event and Task sides independent? Wedding-type validation is already finalized; this question affects only compatibility between the two linked records.
 
 The finalized collaborator, wedding-creation, ownership, delegation, financial-security, and no-shadcn/ui decisions take precedence over older illustrative wording in the other documents.

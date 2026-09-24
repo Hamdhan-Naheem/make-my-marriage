@@ -83,3 +83,21 @@ export class EventNotFoundError extends AppError {
     super(404, "EVENT_NOT_FOUND", "Event not found.");
   }
 }
+
+export class TasksOwnerAccessRequiredError extends AppError {
+  constructor() {
+    super(403, "TASKS_OWNER_ACCESS_REQUIRED", "Only an active wedding Owner can manage Tasks in this milestone.");
+  }
+}
+
+export class TaskNotFoundError extends AppError {
+  constructor() {
+    super(404, "TASK_NOT_FOUND", "Task not found.");
+  }
+}
+
+export class EventSideTaskConflictError extends AppError {
+  constructor() {
+    super(409, "EVENT_SIDE_TASK_CONFLICT", "Resolve incompatible linked Tasks before changing the Event Side.");
+  }
+}

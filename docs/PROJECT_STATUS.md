@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, wedding workspace creation/settings, and end-to-end Events management are complete.** Password recovery, remaining business models, and third-party integrations remain pending.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, wedding workspace creation/settings, end-to-end Events management, and the Task Planner are complete.** Password recovery, remaining business models, and third-party integrations remain pending.
 
 ## Completed milestones
 
@@ -268,6 +268,45 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Verification recorded:** focused shared validation, service, HTTP integration, and frontend form-schema tests passed. Repository linting, type checking, regression tests, and production builds passed. No schema migration was required because the approved nullable wedding-date column already existed.
 
+### Task Planner Backend — Completed
+
+**Summary:** Added the PostgreSQL-backed, wedding-scoped Task domain and integrated optional draft Tasks into Event creation. The frontend was delivered in the following milestone.
+
+**Implemented:**
+
+- Additive `Task` model and `TaskStatus` enum with optional Event relationship, nullable description/due date, server-managed completion timestamp, creator audit field, wedding-scoped indexes, and a composite foreign key that prevents linking an Event from another Wedding.
+- Owner-only Task create, list, detail, update, complete, reopen, and confirmed-delete endpoints under `/api/v1/weddings/:weddingId/tasks`, including status/side/Event filters and bounded pagination.
+- Wedding-type Task Side validation and strict Event–Task compatibility: BRIDE Events accept BRIDE Tasks, GROOM Events accept GROOM Tasks, and BOTH Events accept all three sides.
+- Atomic Event creation with optional draft Tasks. Invalid draft Tasks reject the entire request without persisting the Event or any Task.
+- Event Side updates are rejected when existing linked Tasks would become incompatible; linked Tasks are never changed implicitly.
+- Strict Zod request contracts reject client-managed completion timestamps and out-of-scope assignments, priorities, reminders, subtasks, and attachments.
+
+**Important implementation notes:**
+
+- Active Owner membership is the initial Task authorization policy. Admin, Family Member, Collaborator, member assignment, capability, side, and explicit Task-access infrastructure remain deferred under the approved long-term role model.
+- The backend deletion endpoint returns `204`; the frontend obtains explicit user confirmation before calling it.
+
+**Verification recorded:** migration `20260924150000_add_tasks` was audited as additive, deployed to the isolated test database first, and then applied to development without resetting existing data. Task and Event integration coverage verifies CRUD, completion/reopening, pagination and filters, Event linking, strict side compatibility, atomic Event-with-Tasks creation, Owner-only access, trusted-origin writes, and cross-wedding isolation. Repository linting, type checking, regression tests, and production builds passed.
+
+### Task Planner Frontend — Completed
+
+**Summary:** Connected the approved responsive Task Planner and Event-linked Task workflows to the real Task and Event APIs using the established wedding workspace design.
+
+**Implemented:**
+
+- Owner-only `/weddings/:weddingId/tasks` planner with status, side, and Event filters; bounded pagination; honest empty/loading/error states; completion, reopening, editing, and confirmed deletion.
+- Reusable Create/Edit Task form with required name and side, optional description/due date/Event link, accessible controls, and conditional side choices based on Wedding and linked Event rules.
+- Optional preparation Tasks in Create Event, submitted in the existing atomic Event request and validated against the selected Event Side.
+- Event Details Task management for adding, viewing, editing, completing, reopening, and deleting only Tasks linked to that Event.
+- Responsive workspace navigation and Task layouts for desktop and mobile without Stitch prototype controls or unsupported Task features.
+
+**Important implementation notes:**
+
+- The backend remains authoritative for active Owner access, wedding isolation, and Task/Event side compatibility. The frontend stores no additional authorization state.
+- Task assignment, priorities, reminders, subtasks, attachments, and access for non-Owner roles remain deferred.
+
+**Verification recorded:** focused Event/Task form validation tests, frontend linting and type checking, repository linting and type checking, and frontend/API production builds passed. Existing backend Task integration coverage remains unchanged and passing.
+
 ## Features in progress
 
 No major feature is currently recorded as in progress.
@@ -279,7 +318,7 @@ The following approved MVP areas are planned but not implemented:
 - Remaining approved business database models and migrations
 - Forgot Password, Reset Password, and the password-reset database model
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
-- Tasks, budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
+- Budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
 - Redux Toolkit business state, remaining API integrations, private Amazon S3 documents, and MVP deployment infrastructure
 
 ## Important implementation notes

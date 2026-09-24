@@ -5,6 +5,7 @@ import { notFound } from "./middleware/not-found.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { eventRouter } from "./modules/events/event.routes.js";
+import { taskRouter } from "./modules/tasks/task.routes.js";
 import { weddingRouter } from "./modules/weddings/wedding.routes.js";
 
 export const app = express();
@@ -14,6 +15,7 @@ app.use(express.json({ limit: "100kb" }));
 app.use(API_BASE_PATH, healthRouter);
 app.use(`${API_BASE_PATH}/auth`, authRouter);
 app.use(`${API_BASE_PATH}/weddings/:weddingId/events`, eventRouter);
+app.use(`${API_BASE_PATH}/weddings/:weddingId/tasks`, taskRouter);
 app.use(`${API_BASE_PATH}/weddings`, weddingRouter);
 app.use(notFound);
 app.use(errorHandler);

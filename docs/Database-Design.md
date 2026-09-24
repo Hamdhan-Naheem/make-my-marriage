@@ -931,7 +931,9 @@ which might not belong to one event.
 
 Every Task belongs to one Wedding. When `event_id` is present, a composite foreign key from `(wedding_id, event_id)` to the Event's `(wedding_id, id)` ensures that the linked Event belongs to the same Wedding. Add `UNIQUE(wedding_id, id)` to Task for later explicit Task-access relationships.
 
-Task sides use `BRIDE`, `GROOM`, or `BOTH`. Bride Side weddings allow only `BRIDE`, Groom Side weddings allow only `GROOM`, and Joint weddings allow all three values. This wedding-type rule is enforced by the service because it depends on the related Wedding. The compatibility rule between a linked Event's side and its Task's side remains unresolved and must not be encoded in a constraint or application rule until approved.
+Task sides use `BRIDE`, `GROOM`, or `BOTH`. Bride Side weddings allow only `BRIDE`, Groom Side weddings allow only `GROOM`, and Joint weddings allow all three values. Wedding-wide Tasks require only this wedding-type validation.
+
+An Event-linked Task must also be compatible with its Event: a `BRIDE` Event permits only `BRIDE` Tasks, a `GROOM` Event permits only `GROOM` Tasks, and a `BOTH` Event permits `BRIDE`, `GROOM`, or `BOTH` Tasks. The service enforces these cross-row rules during Event-with-Tasks creation and when a Task's `event_id` or `side` changes. An Event side update is rejected if any linked Task would become incompatible; existing Task rows are never changed implicitly.
 
 ---
 
@@ -2607,7 +2609,7 @@ This database structure is the recommended Version 1.0 foundation for Make My Ma
 
 # 72. Implementation-Stage Questions
 
-The six existing unresolved groups are maintained in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details. The same section also records the unresolved compatibility rule between an Event side and the side of a Task linked to that Event.
+The six unresolved groups are maintained in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
 
 In particular, the conceptual Guest-to-Invitation relationship in Sections 41 and 68 and the index list in Section 53 do not settle whether regenerated invitations replace a row or retain history. Choose the persistence model and matching uniqueness constraints during implementation. Do not silently infer that choice from the diagram.
 

@@ -11,6 +11,7 @@ const validEvent: EventFormValues = {
   endTime: "13:30",
   venueName: "",
   address: "",
+  tasks: [],
 };
 
 test("accepts a date without times and fully unscheduled events", () => {
@@ -48,4 +49,10 @@ test("maps fixed wedding types to their required Event side", () => {
   assert.equal(eventSideForWedding("JOINT"), undefined);
   assert.equal(enforceWeddingEventSide(validEvent, "BRIDE_SIDE").side, "BRIDE");
   assert.equal(enforceWeddingEventSide(validEvent, "GROOM_SIDE").side, "GROOM");
+});
+
+test("validates optional draft Tasks against the Event Side", () => {
+  assert.equal(eventFormSchema.safeParse({ ...validEvent, side: "BOTH", tasks: [{ name: "Shared task", description: "", side: "BOTH", dueDate: "" }] }).success, true);
+  assert.equal(eventFormSchema.safeParse({ ...validEvent, side: "BRIDE", tasks: [{ name: "Wrong task", description: "", side: "GROOM", dueDate: "" }] }).success, false);
+  assert.equal(eventFormSchema.safeParse({ ...validEvent, side: "GROOM", tasks: [{ name: "Groom task", description: "", side: "GROOM", dueDate: "2027-01-10" }] }).success, true);
 });

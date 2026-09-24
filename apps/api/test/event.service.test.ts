@@ -22,14 +22,17 @@ const baseRecord: EventRecord = {
 
 class FakeEventRepository implements EventRepository {
   record: EventRecord | null = baseRecord;
+  incompatibleTasks = false;
+  createdTasks: unknown[] = [];
   lastScope?: { weddingId: string; eventId: string };
-  async create(input: EventWriteRecord & { createdByUserId: string }) { return { ...baseRecord, ...input }; }
+  async create(input: EventWriteRecord & { createdByUserId: string }, tasks: unknown[] = []) { this.createdTasks = tasks; return { ...baseRecord, ...input }; }
   async list(_weddingId: string, _side?: WeddingSide) { return this.record ? [this.record] : []; }
   async find(weddingId: string, eventId: string) { this.lastScope = { weddingId, eventId }; return this.record; }
   async update(weddingId: string, eventId: string, input: EventWriteRecord) {
     this.lastScope = { weddingId, eventId };
     return { ...baseRecord, ...input, weddingId };
   }
+  async hasIncompatibleTasks() { return this.incompatibleTasks; }
 }
 
 describe("EventService", () => {
@@ -47,5 +50,31 @@ describe("EventService", () => {
     const updated = await service.update(baseRecord.weddingId, baseRecord.id, "JOINT", { name: "Updated ceremony" });
     assert.equal(updated.name, "Updated ceremony");
     assert.deepEqual(repository.lastScope, { weddingId: baseRecord.weddingId, eventId: baseRecord.id });
+  });
+
+  it("creates compatible draft Tasks atomically through the repository", async () => {
+    const repository = new FakeEventRepository();
+    const service = new EventService(repository);
+    await service.create(baseRecord.weddingId, "JOINT", crypto.randomUUID(), {
+      name: "Joint event",
+      side: "BOTH",
+      tasks: [{ name: "Bride task", side: "BRIDE" }, { name: "Shared task", side: "BOTH", dueDate: "2027-01-10" }],
+    });
+    assert.equal(repository.createdTasks.length, 2);
+    await assert.rejects(() => service.create(baseRecord.weddingId, "JOINT", crypto.randomUUID(), {
+      name: "Bride event",
+      side: "BRIDE",
+      tasks: [{ name: "Wrong task", side: "GROOM" }],
+    }), RequestValidationError);
+  });
+
+  it("rejects an Event Side change while linked Tasks are incompatible", async () => {
+    const repository = new FakeEventRepository();
+    repository.incompatibleTasks = true;
+    const service = new EventService(repository);
+    await assert.rejects(
+      () => service.update(baseRecord.weddingId, baseRecord.id, "JOINT", { side: "BRIDE" }),
+      (error: unknown) => error instanceof Error && error.name === "EventSideTaskConflictError",
+    );
   });
 });

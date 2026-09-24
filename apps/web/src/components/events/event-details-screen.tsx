@@ -6,6 +6,7 @@ import type { WeddingEvent } from "@make-my-marriage/shared";
 import type { EventsWeddingContext } from "@/components/events/events-wedding-gate";
 import { formatEventDate, formatEventTime, sideLabel } from "@/components/events/events-overview";
 import { WeddingWorkspaceShell } from "@/components/weddings/dashboard/wedding-workspace-shell";
+import { EventTasksPanel } from "@/components/tasks/event-tasks-panel";
 import { ApiError, getEvent } from "@/lib/api";
 import { useTerminalAuthRedirect } from "@/lib/use-terminal-auth-redirect";
 
@@ -60,6 +61,7 @@ function EventDetails({ event, eventId, ownerName, weddingId, weddingName }: { e
         {event.venueName || event.address ? <><p className="text-xs font-semibold uppercase tracking-wide text-[#887273]">Venue</p><p className="mt-2 font-bold text-[#302526]">{event.venueName || "Venue name not added"}</p>{event.address ? <p className="mt-3 text-sm leading-6 text-[#665456]">{event.address}</p> : null}</> : <p className="text-sm leading-6 text-[#665456]">Location not added yet.</p>}
       </DetailsCard>
     </div>
+    <EventTasksPanel event={event} weddingId={weddingId} />
   </>;
 }
 

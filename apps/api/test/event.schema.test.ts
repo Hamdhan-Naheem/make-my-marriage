@@ -18,6 +18,7 @@ describe("event request validation", () => {
   it("accepts scheduled and unscheduled Events", () => {
     assert.equal(parseCreateEventRequest(validEvent).eventDate, "2028-02-29");
     assert.deepEqual(parseCreateEventRequest({ name: "Family Dinner", side: "BRIDE" }), { name: "Family Dinner", side: "BRIDE" });
+    assert.equal(parseCreateEventRequest({ name: "Event with tasks", side: "BOTH", tasks: [{ name: "Book venue", side: "BOTH" }] }).tasks?.length, 1);
   });
 
   it("rejects impossible dates, invalid schedules, and unsupported fields", () => {
@@ -27,6 +28,7 @@ describe("event request validation", () => {
       { ...validEvent, startTime: null, endTime: "12:00" },
       { ...validEvent, endTime: "09:00" },
       { ...validEvent, budgetAmount: 1000 },
+      { ...validEvent, tasks: [{ name: "Unsupported", side: "BOTH", priority: "HIGH" }] },
     ]) assert.throws(() => parseCreateEventRequest(body), RequestValidationError);
   });
 

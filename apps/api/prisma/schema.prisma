@@ -22,6 +22,7 @@ model User {
   emailVerificationToken EmailVerificationToken?
   createdWeddings        Wedding[]               @relation("WeddingCreator")
   createdEvents          Event[]                 @relation("EventCreator")
+  createdTasks           Task[]                  @relation("TaskCreator")
   weddingMemberships     WeddingMember[]
 
   @@map("users")
@@ -52,6 +53,13 @@ enum WeddingSide {
   @@map("wedding_side")
 }
 
+enum TaskStatus {
+  TO_DO
+  COMPLETED
+
+  @@map("task_status")
+}
+
 model Wedding {
   id              String                @id @default(uuid()) @db.Uuid
   name            String                @db.VarChar(120)
@@ -67,6 +75,7 @@ model Wedding {
   createdBy User            @relation("WeddingCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   members   WeddingMember[]
   events    Event[]
+  tasks     Task[]
 
   @@index([createdByUserId])
   @@map("weddings")
@@ -110,12 +119,41 @@ model Event {
 
   wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Restrict)
   createdBy User    @relation("EventCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  tasks     Task[]
 
   @@unique([weddingId, id])
   @@index([weddingId])
   @@index([weddingId, eventDate])
   @@index([createdByUserId])
   @@map("events")
+}
+
+model Task {
+  id              String     @id @default(uuid()) @db.Uuid
+  weddingId       String     @map("wedding_id") @db.Uuid
+  eventId         String?    @map("event_id") @db.Uuid
+  name            String     @db.VarChar(140)
+  description     String?    @db.VarChar(1000)
+  side            WeddingSide
+  dueDate         DateTime?  @map("due_date") @db.Date
+  status          TaskStatus @default(TO_DO)
+  completedAt     DateTime?  @map("completed_at") @db.Timestamptz(3)
+  createdByUserId String     @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Restrict)
+  event     Event?  @relation(fields: [weddingId, eventId], references: [weddingId, id], onDelete: Restrict)
+  createdBy User    @relation("TaskCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([weddingId, id])
+  @@index([weddingId])
+  @@index([weddingId, status])
+  @@index([weddingId, side])
+  @@index([weddingId, eventId])
+  @@index([weddingId, dueDate])
+  @@index([createdByUserId])
+  @@map("tasks")
 }
 
 model Session {

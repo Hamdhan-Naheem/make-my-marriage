@@ -16,6 +16,7 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export const weddingManagementTypeSchema = z.enum(["BRIDE_SIDE", "GROOM_SIDE", "JOINT"]);
 export const weddingMemberRoleSchema = z.enum(["OWNER", "ADMIN", "FAMILY_MEMBER", "COLLABORATOR"]);
 export const weddingSideSchema = z.enum(["BRIDE", "GROOM", "BOTH"]);
+export const taskStatusSchema = z.enum(["TO_DO", "COMPLETED"]);
 
 export const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date in YYYY-MM-DD format.").refine((value) => {
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -111,6 +112,15 @@ const eventWritableShape = {
   address: z.string().trim().max(500, "Use 500 characters or fewer.").nullable().optional(),
 };
 
+const taskWritableShape = {
+  name: z.string().trim().min(1, "Enter a task name.").max(140, "Use 140 characters or fewer."),
+  description: z.string().trim().max(1000, "Use 1,000 characters or fewer.").nullable().optional(),
+  side: weddingSideSchema,
+  dueDate: dateOnlySchema.nullable().optional(),
+};
+
+export const draftTaskSchema = z.object(taskWritableShape).strict();
+
 function validateEventSchedule(
   value: { eventDate?: string | null; startTime?: string | null; endTime?: string | null },
   context: z.RefinementCtx,
@@ -126,7 +136,10 @@ function validateEventSchedule(
   }
 }
 
-export const createEventRequestSchema = z.object(eventWritableShape).strict().superRefine(validateEventSchedule);
+export const createEventRequestSchema = z.object({
+  ...eventWritableShape,
+  tasks: z.array(draftTaskSchema).max(50, "Add no more than 50 tasks when creating an event.").optional(),
+}).strict().superRefine(validateEventSchedule);
 
 export const updateEventRequestSchema = z.object(eventWritableShape).partial().strict().refine(
   (value) => Object.keys(value).length > 0,
@@ -151,11 +164,56 @@ export const eventSchema = z.object({
 export const eventResponseSchema = z.object({ success: z.literal(true), data: eventSchema });
 export const eventListResponseSchema = z.object({ success: z.literal(true), data: z.array(eventSchema) });
 
+export const createTaskRequestSchema = z.object({
+  ...taskWritableShape,
+  eventId: z.string().uuid("Event ID must be a valid UUID.").nullable().optional(),
+}).strict();
+
+export const updateTaskRequestSchema = z.object({
+  ...taskWritableShape,
+  eventId: z.string().uuid("Event ID must be a valid UUID.").nullable().optional(),
+  status: taskStatusSchema.optional(),
+}).partial().strict().refine(
+  (value) => Object.keys(value).length > 0,
+  { message: "Provide at least one task field to update." },
+);
+
+export const taskSchema = z.object({
+  id: z.string().uuid(),
+  weddingId: z.string().uuid(),
+  eventId: z.string().uuid().nullable(),
+  name: z.string(),
+  description: z.string().nullable(),
+  side: weddingSideSchema,
+  dueDate: dateOnlySchema.nullable(),
+  status: taskStatusSchema,
+  completedAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const taskResponseSchema = z.object({ success: z.literal(true), data: taskSchema });
+export const taskListResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(taskSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    limit: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+    totalPages: z.number().int().nonnegative(),
+  }),
+});
+
 export type CreateWeddingRequest = z.infer<typeof createWeddingRequestSchema>;
 export type UpdateWeddingRequest = z.infer<typeof updateWeddingRequestSchema>;
 export type CreateEventRequest = z.infer<typeof createEventRequestSchema>;
 export type UpdateEventRequest = z.infer<typeof updateEventRequestSchema>;
 export type WeddingEvent = z.infer<typeof eventSchema>;
+export type DraftTask = z.infer<typeof draftTaskSchema>;
+export type CreateTaskRequest = z.infer<typeof createTaskRequestSchema>;
+export type UpdateTaskRequest = z.infer<typeof updateTaskRequestSchema>;
+export type WeddingTask = z.infer<typeof taskSchema>;
+export type TaskStatus = z.infer<typeof taskStatusSchema>;
 export type WeddingManagementType = z.infer<typeof weddingManagementTypeSchema>;
 export type WeddingMemberRole = z.infer<typeof weddingMemberRoleSchema>;
 export type WeddingSide = z.infer<typeof weddingSideSchema>;
