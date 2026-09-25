@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
+    "vercel-build": "npm run build --workspace=@make-my-marriage/shared && next build",
     "start": "next start --port 3000",
     "lint": "eslint",
     "pretest": "npm run build --workspace=@make-my-marriage/shared",

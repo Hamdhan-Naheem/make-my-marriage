@@ -7,7 +7,9 @@
 **Application Type:** Responsive Web Application  
 **Primary Market:** Sri Lanka  
 **Architecture Style:** Modular Monolith  
-**Cloud Provider:** AWS
+**Current Learning Deployment:** Vercel Hobby + Neon Free
+
+> **Deployment amendment (September 2026):** [Vercel and Neon Deployment](Deployment-Vercel-Neon.md) supersedes this document's AWS EC2, RDS, ECR, Nginx, GitHub Actions deployment, and production Docker sections. Those sections remain as postponed history. Application architecture and local Docker-based PostgreSQL development remain unchanged.
 
 ---
 

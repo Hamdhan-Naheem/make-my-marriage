@@ -11,6 +11,7 @@ import { weddingRouter } from "./modules/weddings/wedding.routes.js";
 export const app = express();
 
 app.disable("x-powered-by");
+if (process.env["VERCEL"]) app.set("trust proxy", 1);
 app.use(express.json({ limit: "100kb" }));
 app.use(API_BASE_PATH, healthRouter);
 app.use(`${API_BASE_PATH}/auth`, authRouter);
@@ -19,3 +20,7 @@ app.use(`${API_BASE_PATH}/weddings/:weddingId/tasks`, taskRouter);
 app.use(`${API_BASE_PATH}/weddings`, weddingRouter);
 app.use(notFound);
 app.use(errorHandler);
+
+// Vercel detects this recognized entry and deploys it as one function. The
+// named export remains available to the local listener and integration tests.
+export default app;

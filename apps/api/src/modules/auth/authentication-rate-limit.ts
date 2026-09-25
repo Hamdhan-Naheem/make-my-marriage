@@ -1,27 +1,22 @@
-import { rateLimit } from "express-rate-limit";
-import type { ErrorResponse } from "../../shared/http.js";
+import { createDatabaseRateLimit } from "./database-rate-limit.js";
 
-function createAuthenticationRateLimit(message: string, limit: number) {
-  return rateLimit({
+function createAuthenticationRateLimit(scope: string, message: string, limit: number) {
+  return createDatabaseRateLimit({
+    scope,
     windowMs: 15 * 60 * 1000,
     limit,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    handler: (_req, res) => {
-      res.status(429).json({
-        success: false,
-        error: { code: "RATE_LIMITED", message },
-      } satisfies ErrorResponse);
-    },
+    message,
   });
 }
 
 export const loginRateLimit = createAuthenticationRateLimit(
+  "login",
   "Too many sign-in attempts. Please try again later.",
   10,
 );
 
 export const refreshRateLimit = createAuthenticationRateLimit(
+  "refresh",
   "Too many session refresh attempts. Please try again later.",
   60,
 );

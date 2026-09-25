@@ -1,18 +1,8 @@
-import { rateLimit } from "express-rate-limit";
-import type { ErrorResponse } from "../../shared/http.js";
+import { createDatabaseRateLimit } from "./database-rate-limit.js";
 
-export const registrationRateLimit = rateLimit({
+export const registrationRateLimit = createDatabaseRateLimit({
+  scope: "registration",
   windowMs: 15 * 60 * 1000,
   limit: 10,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  handler: (_req, res) => {
-    res.status(429).json({
-      success: false,
-      error: {
-        code: "RATE_LIMITED",
-        message: "Too many registration attempts. Please try again later.",
-      },
-    } satisfies ErrorResponse);
-  },
+  message: "Too many registration attempts. Please try again later.",
 });

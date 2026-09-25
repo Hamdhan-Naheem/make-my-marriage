@@ -128,7 +128,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 - At this milestone, registration created only an unverified `User`; token creation and email delivery were added later.
 - The temporary `409 EMAIL_ALREADY_REGISTERED` behavior was replaced by the generic registration response in the Email Verification milestone.
-- The in-memory limiter matches the single-process MVP. Nginx proxy-trust configuration remains deployment-stage work.
+- This milestone originally used a process-local limiter; the later Vercel and Neon deployment preparation replaced it with shared PostgreSQL-backed rate limiting.
 - `argon2` 0.44.0 is used because 0.45.1 fell back to native compilation on the current Windows/Node environment and the required Visual Studio C++ toolchain is unavailable.
 
 **Verification recorded:** six unit tests and seven HTTP integration tests passed against a separate migrated PostgreSQL test database. Repository linting, application and test type checks, frontend and API production builds, concurrent duplicate registration, Argon2id verification, rate limiting, data isolation from Session/verification-token records, body-size enforcement, and the unchanged health endpoint all passed.
@@ -159,7 +159,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 - Email verification and Resend were completed in the later Email Verification milestone. The temporary unverified-development bypass was removed.
 - Forgot Password remains UI-only. No password-reset model or endpoint was added.
 - `/account` remains the temporary authenticated destination until the approved wedding dashboard is implemented. Registration still creates an unverified account without creating a session or claiming that an email was sent.
-- The current in-memory rate limiters suit the single-process MVP. Nginx proxy trust and distributed limiting remain deployment work.
+- The original process-local rate limiters were replaced during Vercel and Neon deployment preparation with shared PostgreSQL-backed buckets and Vercel proxy handling.
 - The production dependency audit still reports four pre-existing high advisories in the Prisma CLI dependency chain. The reported fixes require changing the approved Prisma version and were not applied automatically.
 
 **Verification recorded:** 16 unit tests and 14 HTTP integration tests passed against the separate migrated test database. Repository linting and type checks passed, frontend and API production builds passed, and a live Next.js-rewrite flow returned health 200, registration 201, login 200, current user 200, refresh 200, logout 204, and post-logout current user 401. The generated live-test account was removed from the test database. Authentication-aware navigation subsequently passed focused web linting, type checking, and a production build containing `/`, `/account`, `/login`, and `/register`.
@@ -309,7 +309,21 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Features in progress
 
-No major feature is currently recorded as in progress.
+### Vercel and Neon Deployment — In Progress
+
+**Summary:** Prepared the monorepo for the approved non-commercial Vercel Hobby and Neon Free deployment without creating cloud resources or changing local development.
+
+**Implemented:**
+
+- Separate Vercel project configuration and deterministic workspace builds for `apps/web` and `apps/api`, pinned to Node.js 22.x.
+- A Vercel-compatible default Express export while retaining the existing local listener.
+- Pooled runtime and direct Prisma migration URL boundaries with local `DATABASE_URL` fallback.
+- PostgreSQL-backed authentication rate-limit buckets shared across Vercel function instances.
+- Production environment, same-origin rewrite, Resend self-test, migration, and deployment instructions in `Deployment-Vercel-Neon.md`.
+
+**Remaining work:** Create the Vercel and Neon projects, add private production variables, apply committed migrations through the direct Neon connection, deploy API then web, and complete production smoke checks.
+
+**Verification recorded:** Prisma validation and generation, the isolated test-database migration, repository linting and type checking, all web/unit/integration tests, the API Vercel build command, and the Next.js production build passed locally.
 
 ## Planned features
 
@@ -319,7 +333,7 @@ The following approved MVP areas are planned but not implemented:
 - Forgot Password, Reset Password, and the password-reset database model
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
 - Budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
-- Redux Toolkit business state, remaining API integrations, private Amazon S3 documents, and MVP deployment infrastructure
+- Redux Toolkit business state, remaining API integrations, private Amazon S3 documents, and completion of the approved Vercel/Neon deployment
 
 ## Important implementation notes
 

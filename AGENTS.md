@@ -30,7 +30,7 @@ These documents are the source of truth. Finalized decisions override older illu
 - Use Resend for verification and password-reset emails.
 - Store documents in private Amazon S3 and use authorized presigned upload/download URLs.
 - Use Google Places only for simple vendor discovery; vendors do not have application accounts.
-- The MVP deployment target is AWS EC2 with Docker Compose, Amazon ECR, Nginx, PostgreSQL on RDS, and GitHub Actions. Logging remains `console.log` and `console.error`; never log passwords, hashes, or tokens.
+- The approved learning deployment target is two Vercel Hobby projects (`apps/web` and `apps/api`) with one Neon Free PostgreSQL project, as defined in [Vercel and Neon Deployment](docs/Deployment-Vercel-Neon.md). AWS EC2/RDS/ECR and production Docker deployment are postponed. Logging remains `console.log` and `console.error`; never log passwords, hashes, tokens, or connection strings.
 - Do not introduce microservices, Redis, Kafka, Kubernetes, Cognito, ECS, Fargate, GraphQL, WebSockets, or other unnecessary infrastructure.
 
 ## Authorization and data protection
