@@ -8,6 +8,8 @@
 **Product Stage:** Minimum Viable Product (MVP)  
 **Platform:** Responsive Web Application
 
+> **Deployment amendment (September 2026):** The approved non-commercial learning deployment is two Vercel Hobby projects with one Neon Free PostgreSQL project. [Vercel and Neon Deployment](Deployment-Vercel-Neon.md) supersedes older AWS deployment references; AWS is postponed.
+
 ---
 
 # 1. Product Overview
