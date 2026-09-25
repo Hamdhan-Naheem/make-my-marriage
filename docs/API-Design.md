@@ -303,6 +303,9 @@ Hash password using Argon2id
 Create user
  ↓
 Create email verification token
+with a 24-hour expiry
+  ↓
+Store only its SHA-256 hash
  ↓
 Send verification email using Resend
 ```
@@ -313,15 +316,21 @@ Response:
 {
   "success": true,
   "data": {
-    "message": "Registration successful. Please verify your email."
+    "message": "If this email can be registered, use the verification message to continue. If it does not arrive, request a new link."
   }
 }
 ```
 
+New, duplicate, and concurrent duplicate submissions use the same honest response. It
+does not claim that an account was created or an email was sent. A new account and its
+hashed verification token are committed atomically before Resend delivery is attempted.
+If delivery fails, the account remains and the unusable token record is removed so the
+user can immediately request another link.
+
 Status:
 
 ```text
-201 Created
+202 Accepted
 ```
 
 ---
@@ -351,7 +360,7 @@ Check expiry
  ↓
 Check not already used
  ↓
-Set user.emailVerifiedAt
+Atomically set user.emailVerifiedAt
  ↓
 Set token.usedAt
 ```
@@ -398,6 +407,10 @@ Example:
 
 This prevents account enumeration.
 
+Each user has one current email-verification-token record. Resending replaces
+its hash and expiry, which invalidates previous unused links. The token is
+single-use, expires after 24 hours, and is stored only as a SHA-256 hash.
+
 ---
 
 # 12. Login
@@ -434,6 +447,10 @@ Create Session
  ↓
 Set HttpOnly cookies
 ```
+
+Unverified users receive `403 EMAIL_VERIFICATION_REQUIRED` in every environment. There
+is no development bypass. Protected requests and refresh attempts also reject and
+revoke any existing Session whose user is not verified.
 
 Response:
 
@@ -478,6 +495,9 @@ Response:
 
 This endpoint is useful when the frontend application initially loads.
 
+Access JWTs expire after 15 minutes and reference a Session ID. Every protected
+request must confirm that the referenced Session remains active and unexpired.
+
 ---
 
 # 14. Refresh Access Token
@@ -503,10 +523,20 @@ Check session not revoked
  ↓
 Check expiry
  ↓
-Generate new access token
- ↓
-Set access-token cookie
+Atomically replace refresh-token hash
+and increment its version
+  ↓
+Generate new access and refresh tokens
+  ↓
+Set HttpOnly cookies
 ```
+
+The Session has a fixed seven-day absolute expiry from login. Rotation must not
+extend it. Rotation conditionally replaces the current hash and increments its version,
+so only one request can succeed. A request that loses a valid race within five seconds
+receives `409 REFRESH_ALREADY_ROTATED` without cookies being cleared. The frontend may
+retry its protected request once because the winning response has supplied the current
+cookies. Reuse outside that window revokes the Session as suspected token theft.
 
 Response:
 
@@ -515,6 +545,10 @@ Response:
   "success": true
 }
 ```
+
+Cookie-setting and cookie-changing authentication routes validate the request Origin
+against the exact configured `WEB_ORIGIN`. The same-origin Next.js rewrite is the
+browser API boundary; the Express API does not enable permissive CORS.
 
 ---
 
@@ -710,11 +744,11 @@ Request:
   "groomName": "Ahamed",
   "managementType": "JOINT",
   "mainWeddingDate": "2027-01-20",
-  "budgetAmount": 5000000,
-  "currency": "LKR",
   "creatorSide": "GROOM"
 }
 ```
+
+`mainWeddingDate` may be `null` when the date is undecided. Budget and currency are intentionally excluded from onboarding and this creation contract; they will be configured through the later budget feature. Bride Side requires `creatorSide: "BRIDE"`, Groom Side requires `creatorSide: "GROOM"`, and Joint accepts `BRIDE`, `GROOM`, or `BOTH`.
 
 Processing uses a database transaction:
 
@@ -734,7 +768,10 @@ Response:
   "data": {
     "id": "wedding-uuid",
     "name": "Ahamed & Fathima Wedding",
+    "brideName": "Fathima",
+    "groomName": "Ahamed",
     "managementType": "JOINT",
+    "mainWeddingDate": "2027-01-20",
     "member": {
       "role": "OWNER",
       "side": "GROOM"
@@ -770,16 +807,26 @@ Example response:
     {
       "id": "uuid-1",
       "name": "My Wedding",
-      "role": "OWNER",
-      "side": "GROOM",
-      "mainWeddingDate": "2027-01-20"
+      "brideName": "Fathima",
+      "groomName": "Ahamed",
+      "managementType": "JOINT",
+      "mainWeddingDate": "2027-01-20",
+      "member": {
+        "role": "OWNER",
+        "side": "GROOM"
+      }
     },
     {
       "id": "uuid-2",
       "name": "My Sister's Wedding",
-      "role": "FAMILY_MEMBER",
-      "side": "BRIDE",
-      "mainWeddingDate": "2027-04-10"
+      "brideName": "Nadia",
+      "groomName": "Irfan",
+      "managementType": "BRIDE_SIDE",
+      "mainWeddingDate": null,
+      "member": {
+        "role": "FAMILY_MEMBER",
+        "side": "BRIDE"
+      }
     }
   ]
 }
@@ -793,7 +840,7 @@ Example response:
 GET /api/v1/weddings/:weddingId
 ```
 
-Requires active wedding membership. The example includes `budgetAmount` for a caller with `BUDGET_VIEW`; omit it otherwise. Membership alone does not grant financial access. Collaborators receive only the minimal workspace context needed for their assigned resources, not unrelated nested wedding data.
+Requires active wedding membership. An inaccessible, inactive, archived, or unknown wedding returns the same not-found response so IDs are not disclosed. This initial endpoint returns only non-financial workspace and current-member context. Future financial fields must remain subject to the documented permissions. Collaborators receive only the minimal workspace context needed for their assigned resources, not unrelated nested wedding data.
 
 Response:
 
@@ -807,8 +854,10 @@ Response:
     "groomName": "Ahamed",
     "managementType": "JOINT",
     "mainWeddingDate": "2027-01-20",
-    "budgetAmount": 5000000,
-    "currency": "LKR"
+    "member": {
+      "role": "OWNER",
+      "side": "GROOM"
+    }
   }
 }
 ```
@@ -821,17 +870,20 @@ Response:
 PATCH /api/v1/weddings/:weddingId
 ```
 
-Owner permission is required for sensitive settings, including management-type changes. Updating `budgetAmount` separately requires `BUDGET_MANAGE`; a general wedding-edit capability is insufficient. Validate all requested fields before writing, and reject the entire request if any field is unauthorized. The response must omit budget fields without `BUDGET_VIEW`.
+An authenticated active Owner is required. The current Wedding Settings milestone accepts only `name`, `brideName`, `groomName`, and nullable `mainWeddingDate`. At least one field is required. `managementType` is read-only and rejected if supplied; wedding-type changes are outside this milestone.
 
 Example request:
 
 ```json
 {
   "name": "Ahamed & Fathima",
-  "mainWeddingDate": "2027-01-21",
-  "budgetAmount": 5500000
+  "brideName": "Fathima",
+  "groomName": "Ahamed",
+  "mainWeddingDate": "2027-01-21"
 }
 ```
+
+Set `mainWeddingDate` to `null` to return it to undecided. Updating the main wedding date never updates individual Event dates. Updating `budgetAmount` remains a separate future capability requiring `BUDGET_MANAGE`; a general wedding-edit capability is insufficient. Validate all requested fields before writing, and reject the entire request if any field is unauthorized.
 
 ---
 
@@ -1171,7 +1223,7 @@ Owners may manage assignments. An Admin must have member-management permission a
 
 Admin GET responses must not disclose assignments outside the caller's authorized scope. Because PUT replaces the complete set, reject an Admin PUT if either the current or proposed assignments include resources outside that scope; do not remove unseen assignments. Validate removals as well as additions.
 
-Each event, task, vendor, and document requires its own assignment. Assigning an event does not assign its related records. Task responsibility through `assignedMemberId` does not replace a task access row. Removing an assignment revokes that resource access for a Collaborator.
+Each event, task, vendor, and document requires its own assignment. Assigning an event does not assign its related records. When member responsibility is added to Tasks later, it will not replace a task access row. Removing an assignment revokes that resource access for a Collaborator.
 
 Resource creation by a Collaborator requires an authorized workflow that establishes the explicit assignment atomically; a creation permission must not permit arbitrary self-assignment or access to existing unassigned records.
 
@@ -1187,6 +1239,8 @@ Base:
 
 Event reads/lists/updates use the capability, authorized-side, and explicit-assignment rules in Section 90. Omit `budgetAmount` without `BUDGET_VIEW`, including nested and mutation responses.
 
+For the initial Events milestone, every Event endpoint requires an authenticated active `OWNER` membership in the selected wedding. Admin, Family Member, and Collaborator access remains disabled until the documented capability, side, and explicit Event-assignment infrastructure is implemented. This temporary restriction does not replace the long-term role model.
+
 ---
 
 # 37. List Events
@@ -1201,8 +1255,9 @@ Optional filters:
 ?side=BRIDE
 ?side=GROOM
 ?side=BOTH
-?upcoming=true
 ```
+
+The current MVP endpoint supports the optional `side` filter. The illustrative `upcoming` filter remains deferred.
 
 ---
 
@@ -1219,13 +1274,11 @@ Request:
   "name": "Wedding Ceremony",
   "description": "Main wedding ceremony",
   "side": "BOTH",
-  "startsAt": "2027-01-20T10:00:00+05:30",
-  "endsAt": "2027-01-20T15:00:00+05:30",
+  "eventDate": "2027-01-20",
+  "startTime": "10:00",
+  "endTime": "15:00",
   "venueName": "Grand Ballroom",
-  "address": "Colombo, Sri Lanka",
-  "latitude": 6.9271,
-  "longitude": 79.8612,
-  "budgetAmount": 2000000
+  "address": "Colombo, Sri Lanka"
 }
 ```
 
@@ -1235,7 +1288,11 @@ Status:
 201 Created
 ```
 
-Supplying `budgetAmount` requires `BUDGET_MANAGE` in addition to event-creation authorization. Creation must not bypass field-level financial checks.
+Only `name` and `side` are required. Description, date, times, venue, and address are optional and may be `null`. A date can exist without times; times require a date; an end time requires a start time and must be later on the same day. Bride Side weddings accept only `BRIDE`, Groom Side weddings accept only `GROOM`, and Joint weddings accept `BRIDE`, `GROOM`, or `BOTH`.
+
+The Event creation request may also include an optional `tasks` array using the Task creation fields in Section 44, except `eventId` because the new Event supplies that relationship. Creating the Event and all included Tasks is atomic. An empty or omitted array creates no Tasks. Validate every supplied Task against the Event side: `BRIDE` accepts only `BRIDE`, `GROOM` accepts only `GROOM`, and `BOTH` accepts `BRIDE`, `GROOM`, or `BOTH`. Reject the entire request if any Task is incompatible; do not infer or rewrite Task sides.
+
+Event budgets, coordinates, and other unrelated fields are rejected in this milestone. When Event budgets are implemented, supplying `budgetAmount` will require `BUDGET_MANAGE` in addition to Event authorization.
 
 ---
 
@@ -1258,11 +1315,17 @@ Example:
 ```json
 {
   "venueName": "New Venue",
-  "budgetAmount": 2200000
+  "eventDate": "2027-01-20",
+  "startTime": "11:00",
+  "endTime": "14:00"
 }
 ```
 
-Changing `budgetAmount` requires `BUDGET_MANAGE` in addition to event/resource authorization. A general event-management permission is insufficient. Reject mixed requests containing unauthorized fields before any write; omit budget values from the response without `BUDGET_VIEW`.
+Updates are partial but must contain at least one supported Event field. The backend merges a partial update with the saved Event before enforcing side and same-day schedule rules. Event IDs are queried together with the wedding ID, so an Event from another wedding is returned as not found.
+
+When an update changes the Event side, validate all linked Tasks against the proposed side. Reject the Event update if any linked Task would become incompatible. The caller must update or unlink those Tasks first; this endpoint does not change Task sides automatically.
+
+Changing `budgetAmount` remains unavailable. When implemented, it will require `BUDGET_MANAGE` in addition to event/resource authorization. A general event-management permission is insufficient. Reject mixed requests containing unauthorized fields before any write; omit budget values from the response without `BUDGET_VIEW`.
 
 ---
 
@@ -1294,7 +1357,11 @@ Base:
 /api/v1/weddings/:weddingId/tasks
 ```
 
-Collaborator task access requires the relevant capability and an explicit `member_task_access` row. Lists, details, updates, and nested event/member references must all respect authorized resource scope.
+The Task API is the one shared interface for wedding-wide and optionally Event-linked Tasks. The main Task Planner uses this collection, and Event Details uses the same endpoints filtered by `eventId`.
+
+For the initial Task Planner milestone, every Task endpoint requires an authenticated active `OWNER` membership in the selected Wedding. Admin, Family Member, Collaborator, member assignment, and explicit Task-access behavior remain deferred. This restriction does not replace the approved long-term model in which Collaborators require both the relevant capability and an explicit `member_task_access` row.
+
+All Task queries use both `weddingId` and `taskId`. Any linked `eventId` is resolved within the route Wedding, preventing cross-wedding links. Task sides follow the Wedding type: Bride Side permits `BRIDE`, Groom Side permits `GROOM`, and Joint permits `BRIDE`, `GROOM`, or `BOTH`. Wedding-wide Tasks require only this rule. Event-linked Tasks must also match strict compatibility: `BRIDE` Event to `BRIDE` Task, `GROOM` Event to `GROOM` Task, and `BOTH` Event to `BRIDE`, `GROOM`, or `BOTH` Task.
 
 ---
 
@@ -1307,12 +1374,14 @@ GET /api/v1/weddings/:weddingId/tasks
 Filters:
 
 ```text
-?status=TODO
+?status=TO_DO
 ?eventId=uuid
-?assignedMemberId=uuid
+?side=BRIDE
 ?page=1
 ?limit=20
 ```
+
+Without `eventId`, the endpoint returns all Tasks for the Wedding, including wedding-wide and Event-linked Tasks. An `eventId` filter returns Tasks linked to that Event only.
 
 ---
 
@@ -1327,12 +1396,21 @@ Request:
 ```json
 {
   "eventId": "optional-event-uuid",
-  "title": "Confirm Photographer",
+  "name": "Confirm Photographer",
   "description": "Call and finalize the photographer",
-  "assignedMemberId": "member-uuid",
-  "dueAt": "2026-12-10T18:00:00+05:30",
-  "status": "TODO"
+  "side": "BOTH",
+  "dueDate": "2026-12-10"
 }
+```
+
+`name` and `side` are required. `description`, `dueDate`, and `eventId` are optional and may be `null`. The server creates the Task as `TO_DO` with `completedAt: null`; clients cannot set completion metadata during creation. Member assignment, reminders, priorities, subtasks, and attachments are rejected as unsupported fields.
+
+When `eventId` is supplied, validate both same-Wedding ownership and Event-to-Task side compatibility before creating the Task.
+
+Status:
+
+```text
+201 Created
 ```
 
 ---
@@ -1342,6 +1420,8 @@ Request:
 ```http
 GET /api/v1/weddings/:weddingId/tasks/:taskId
 ```
+
+The response represents either a wedding-wide Task (`eventId: null`) or an Event-linked Task and includes `status` and nullable `completedAt`.
 
 ---
 
@@ -1355,9 +1435,15 @@ Example:
 
 ```json
 {
-  "status": "DONE"
+  "status": "COMPLETED"
 }
 ```
+
+Updates are partial but must include at least one supported Task field: `name`, `description`, `side`, `dueDate`, `eventId`, or `status`. Setting `eventId` to `null` makes the Task wedding-wide. Linking another Event requires that Event to belong to the route Wedding.
+
+After merging the update with the saved Task, revalidate wedding-type side rules and Event-to-Task side compatibility whenever `eventId` or `side` changes. Reject an incompatible update without modifying the Task.
+
+Changing status to `COMPLETED` records `completedAt` on the server. Changing it back to `TO_DO` reopens the Task and clears `completedAt`. Clients cannot write `completedAt` directly. Name remains required after merging a partial update with the saved Task.
 
 ---
 
@@ -1372,6 +1458,8 @@ Response:
 ```text
 204 No Content
 ```
+
+The user interface must require explicit confirmation before sending the delete request. The backend still enforces active Owner access and wedding-scoped lookup; a Task in another Wedding is not disclosed or deleted.
 
 ---
 
@@ -3020,4 +3108,4 @@ Retain the six groups in [PRD Section 41](PRD.md#41-implementation-stage-questio
 
 In particular, invitation regeneration/storage and later resharing, inactive-member reinvitation, currency/decimal/overpayment rules, group-versus-person counting and cross-event totals, and reduced invited counts are not finalized here. Dashboard outstanding-payment/vendor details, payer summaries, Google Places View Details, and typed-location lookup contracts still need completion within approved scope.
 
-Archive/deletion behavior, upload completion/failure handling, authentication lifetimes/rotation/revocation/CSRF details, and production HTTPS/secrets remain open. Logout-all remains optional. Existing example payloads and flows do not silently settle these questions, and none of them override the finalized access or financial-security rules.
+Archive/deletion behavior, upload completion/failure handling, and production HTTPS/secrets remain open. Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session, a 24-hour verification token, refresh-token rotation, protected-request Session checks, the Section 14 concurrent/stale-token behavior, and exact trusted-Origin checks on cookie-changing routes. Logout-all remains optional. Existing example payloads and flows do not silently settle the remaining questions, and none of them override the finalized access or financial-security rules.

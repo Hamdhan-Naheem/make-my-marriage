@@ -2,18 +2,26 @@
   "name": "@make-my-marriage/web",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "eslint",
+    "pretest": "npm run build --workspace=@make-my-marriage/shared",
+    "test": "tsx --test src/lib/validation/event-schema.test.ts src/lib/validation/task-schema.test.ts src/lib/validation/wedding-settings-schema.test.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
     "@make-my-marriage/shared": "0.1.0",
+    "@reduxjs/toolkit": "^2.12.0",
     "next": "16.3.5",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-hook-form": "^7.88.0",
+    "react-redux": "^9.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -23,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3"
   }
 }

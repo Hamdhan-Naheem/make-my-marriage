@@ -423,8 +423,7 @@ Display:
 
 - Total tasks
 - Completed tasks
-- In-progress tasks
-- Pending tasks
+- To-do tasks
 
 ## Guest Overview
 
@@ -533,24 +532,24 @@ Users should only manage events permitted by their wedding role, capabilities, a
 
 # 14. Task Management
 
-Task management should remain intentionally simple.
+Task management uses one shared Task system across the wedding workspace and should remain intentionally simple.
 
 The application is not intended to become a complex project-management system.
 
 Each task should contain:
 
-- Task name
-- Description
-- Related event, if applicable
-- Assigned wedding member
-- Due date
+- Task name (required)
+- Description (optional)
+- Related event (optional)
+- Due date (optional)
+- Bride/Groom/Both side
 - Status
+- Completion timestamp when completed
 
 Task statuses:
 
 - To Do
-- In Progress
-- Done
+- Completed
 
 Example:
 
@@ -559,18 +558,26 @@ Task: Confirm Photographer
 
 Event: Wedding
 
-Assigned To: Groom's Brother
-
 Due Date: October 5
 
-Status: In Progress
+Side: Both
+
+Status: To Do
 ```
 
-Users with appropriate permissions can create, update, assign, and complete tasks.
+Tasks may be created from the main Task Planner, optionally while creating an Event, or later from Event Details. The main Task Planner shows all tasks for the selected wedding, including wedding-wide and event-linked tasks.
 
 Tasks can also belong directly to the wedding without being assigned to a specific event.
 
-Subtasks, dependencies, advanced workflows, and complex automation are not required for the MVP.
+Completing a task records its completion timestamp. Reopening it returns the status to To Do and clears that timestamp. Deleting a task requires explicit user confirmation.
+
+Task sides follow the wedding type: Bride Side weddings allow `BRIDE`, Groom Side weddings allow `GROOM`, and Joint weddings allow `BRIDE`, `GROOM`, or `BOTH`. Wedding-wide Tasks use only this wedding-type rule. Event-linked Tasks also follow strict compatibility: a `BRIDE` Event permits only `BRIDE` Tasks, a `GROOM` Event permits only `GROOM` Tasks, and a `BOTH` Event permits `BRIDE`, `GROOM`, or `BOTH` Tasks.
+
+Validate compatibility when an Event is created with Tasks and whenever a Task's Event or side changes. If changing an Event's side would make an existing linked Task incompatible, reject the Event update until those Tasks are changed or unlinked.
+
+For the initial Task Planner milestone, only active Owners can list, view, create, update, complete, reopen, and delete tasks. Member assignment and access for Admin, Family Member, and Collaborator roles remain later work under the approved capability, side, and explicit-assignment model.
+
+Reminders, priorities, subtasks, attachments, dependencies, advanced workflows, and complex automation are not required for this milestone.
 
 ---
 
@@ -1463,6 +1470,6 @@ The following six groups remain open. Existing examples illustrate workflows, no
 3. **Financial boundaries:** How should differences between vendor agreed prices and expense commitments be presented or validated? What are the currency-consistency, decimal JSON representation, overpayment, and event-budget-versus-overall-budget rules? These questions do not reopen the finalized financial authorization rules.
 4. **Guest and RSVP statistics:** Which values count invitation groups versus people? How should wedding-wide totals handle guests invited to multiple events? What happens if an invited count is reduced below an existing RSVP?
 5. **Incomplete API contracts within approved features:** Finalize dashboard outstanding-payment and vendor-payment details, payer summaries, Google Places View Details, and conversion of a typed location into coordinates. Do not add features beyond the approved workflows.
-6. **Lifecycle and operational details:** Define archived-wedding access, dependent-record deletion, upload types/sizes and confirmation checks, S3/database failure handling, exact token lifetimes, refresh-token rotation, immediate session-revocation behavior, CSRF protection, domain/HTTPS, and production secret management. Logout-all remains optional until explicitly selected.
+6. **Lifecycle and operational details:** Define archived-wedding access, dependent-record deletion, upload types/sizes and confirmation checks, S3/database failure handling, domain/HTTPS, and production secret management. Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session that rotation does not extend, a 24-hour single-use email-verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. One atomic refresh wins; a losing request inside a five-second concurrency window receives a non-revoking conflict, while later stale-token reuse revokes the Session. Cookie-changing authentication routes require the exact trusted web Origin. Logout-all remains optional until explicitly selected.
 
 The finalized collaborator, wedding-creation, ownership, delegation, financial-security, and no-shadcn/ui decisions take precedence over older illustrative wording in the other documents.
