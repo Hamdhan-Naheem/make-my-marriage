@@ -13,6 +13,15 @@ const base = {
 };
 
 describe("authentication environment safeguards", () => {
+  it("accepts Vercel's managed PORT=0 value", () => {
+    const parsed = parseEnv({
+      ...base,
+      PORT: "0",
+    });
+
+    assert.equal(parsed.PORT, 0);
+  });
+
   it("requires private Resend email configuration", () => {
     assert.throws(() => parseEnv({ ...base, RESEND_API_KEY: "" }));
     assert.throws(() => parseEnv({ ...base, AUTH_EMAIL_FROM: "" }));

@@ -2,7 +2,9 @@ import { z } from "zod";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  // Vercel injects PORT=0 for its managed Express function runtime. Locally,
+  // the documented default remains 4000.
+  PORT: z.coerce.number().int().min(0).max(65535).default(4000),
   DATABASE_URL: z
     .string()
     .min(1, "DATABASE_URL is required.")
