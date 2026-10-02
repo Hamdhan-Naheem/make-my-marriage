@@ -297,7 +297,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 - Owner-only `/weddings/:weddingId/tasks` planner with status, side, and Event filters; bounded pagination; honest empty/loading/error states; completion, reopening, editing, and confirmed deletion.
 - Reusable Create/Edit Task form with required name and side, optional description/due date/Event link, accessible controls, and conditional side choices based on Wedding and linked Event rules.
 - Optional preparation Tasks in Create Event, submitted in the existing atomic Event request and validated against the selected Event Side.
-- Event Details Task management for adding, viewing, editing, completing, reopening, and deleting only Tasks linked to that Event.
+- Paginated Event Details Task management for adding, viewing, editing, completing, reopening, and deleting every Task linked to that Event.
 - Responsive workspace navigation and Task layouts for desktop and mobile without Stitch prototype controls or unsupported Task features.
 
 **Important implementation notes:**
