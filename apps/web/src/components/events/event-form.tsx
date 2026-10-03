@@ -3,8 +3,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState, type ReactNode } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
-import type { WeddingManagementType, WeddingSide } from "@make-my-marriage/shared";
+import Link from "next/link";
+import type { WeddingCurrency, WeddingManagementType, WeddingSide } from "@make-my-marriage/shared";
 import { ApiError } from "@/lib/api";
+import { formatMoney, isMoneyGreater } from "@/lib/money";
 import { eventFormSchema, eventSideForWedding, enforceWeddingEventSide, type EventFormValues } from "@/lib/validation/event-schema";
 
 const sideOptions: Array<{ value: WeddingSide; label: string; description: string }> = [
@@ -14,9 +16,9 @@ const sideOptions: Array<{ value: WeddingSide; label: string; description: strin
 ];
 
 const inputClass = "w-full rounded-lg border border-transparent bg-[#f6f3f2] px-3.5 py-2.5 text-sm text-[#302526] transition placeholder:text-[#998889] focus:border-[#852c3a] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#852c3a]/20";
-const eventFieldNames = ["name", "description", "side", "eventDate", "startTime", "endTime", "venueName", "address"] as const;
+const eventFieldNames = ["name", "description", "side", "eventDate", "startTime", "endTime", "venueName", "address", "budgetAmount"] as const;
 
-export function EventForm({ initialValues, managementType, mode, onCancel, onSubmit }: { initialValues?: Partial<EventFormValues>; managementType: WeddingManagementType; mode: "create" | "edit"; onCancel: () => void; onSubmit: (values: EventFormValues) => Promise<void> }) {
+export function EventForm({ budgetCurrency, budgetSettingsHref, initialValues, managementType, maximumBudgetAmount, mode, onCancel, onSubmit }: { budgetCurrency?: WeddingCurrency | null; budgetSettingsHref: string; initialValues?: Partial<EventFormValues>; managementType: WeddingManagementType; maximumBudgetAmount?: string | null; mode: "create" | "edit"; onCancel: () => void; onSubmit: (values: EventFormValues) => Promise<void> }) {
   const fixedSide = eventSideForWedding(managementType);
   const [submissionError, setSubmissionError] = useState<string>();
   const { control, formState: { errors, isSubmitting }, handleSubmit, register, setError, setValue } = useForm<EventFormValues>({
@@ -30,6 +32,7 @@ export function EventForm({ initialValues, managementType, mode, onCancel, onSub
       endTime: initialValues?.endTime ?? "",
       venueName: initialValues?.venueName ?? "",
       address: initialValues?.address ?? "",
+      budgetAmount: initialValues?.budgetAmount ?? "",
       tasks: initialValues?.tasks ?? [],
     },
   });
@@ -66,6 +69,10 @@ export function EventForm({ initialValues, managementType, mode, onCancel, onSub
     const normalizedValues = enforceWeddingEventSide(values, managementType);
     if (normalizedValues.side !== values.side) setValue("side", normalizedValues.side, { shouldValidate: true });
     setSubmissionError(undefined);
+    if (maximumBudgetAmount !== null && maximumBudgetAmount !== undefined && values.budgetAmount && isMoneyGreater(values.budgetAmount, maximumBudgetAmount)) {
+      setError("budgetAmount", { type: "validate", message: `This Event can use at most ${formatMoney(maximumBudgetAmount, budgetCurrency ?? "LKR")} from the remaining overall budget.` });
+      return;
+    }
     try {
       await onSubmit(normalizedValues);
     } catch (error) {
@@ -149,11 +156,23 @@ export function EventForm({ initialValues, managementType, mode, onCancel, onSub
           </div>
         </section>
 
+        <div className="h-px bg-[#eee6e2]" />
+
+        <section aria-labelledby="event-budget-heading">
+          <SectionHeading number="5" title="Event Budget" optional id="event-budget-heading" />
+          {budgetCurrency ? <div className="mt-4 max-w-md">
+            <Field label={`Budget amount (${budgetCurrency})`} error={errors.budgetAmount?.message} htmlFor="event-budget">
+              <input aria-describedby={errors.budgetAmount ? "event-budget-error" : "event-budget-help"} aria-invalid={Boolean(errors.budgetAmount)} className={inputClass} id="event-budget" inputMode="decimal" placeholder="0.00" {...register("budgetAmount")} />
+              {!errors.budgetAmount ? <p className="mt-1.5 text-xs leading-5 text-[#776566]" id="event-budget-help">{maximumBudgetAmount !== null && maximumBudgetAmount !== undefined ? `Available allocation: ${formatMoney(maximumBudgetAmount, budgetCurrency)}.` : "No overall budget is set, so this Event budget is independent."} Leave empty to keep this Event without a budget.</p> : null}
+            </Field>
+          </div> : <div className="mt-4 rounded-xl border border-[#d9c9ca] bg-[#f8f2f0] p-4"><p className="text-sm font-semibold text-[#302526]">Choose the Wedding currency before adding an Event budget.</p><Link className="mt-2 inline-flex min-h-11 items-center rounded-lg font-bold text-[#852c3a] underline-offset-4 hover:underline" href={budgetSettingsHref}>Open Budget Settings</Link></div>}
+        </section>
+
         {mode === "create" ? <>
           <div className="h-px bg-[#eee6e2]" />
           <section aria-labelledby="event-tasks-heading">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div><SectionHeading number="5" title="Preparation Tasks" optional id="event-tasks-heading" /><p className="mt-2 text-xs leading-5 text-[#776566]">These Tasks will be saved atomically with the Event. You can also add Tasks later from Event Details.</p></div>
+              <div><SectionHeading number="6" title="Preparation Tasks" optional id="event-tasks-heading" /><p className="mt-2 text-xs leading-5 text-[#776566]">These Tasks will be saved atomically with the Event. You can also add Tasks later from Event Details.</p></div>
               <button className="shrink-0 rounded-lg border border-[#d9c9ca] bg-white px-4 py-2.5 text-sm font-bold text-[#852c3a] hover:bg-[#fff7f6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" onClick={addDraftTask} type="button">+ Add Task</button>
             </div>
             {taskFields.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-[#d9c9ca] bg-[#fcf9f8] px-4 py-8 text-center text-sm text-[#665456]">No preparation Tasks added. This is optional.</div> : null}

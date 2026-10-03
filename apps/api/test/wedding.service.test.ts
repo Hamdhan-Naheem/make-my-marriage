@@ -12,6 +12,8 @@ const record: WeddingRecord = {
   groomName: "Ahamed",
   managementType: "JOINT",
   mainWeddingDate: new Date("2027-01-20T00:00:00.000Z"),
+  budgetAmount: null,
+  currency: null,
   member: { role: "OWNER", side: "GROOM" },
 };
 
@@ -41,7 +43,15 @@ describe("WeddingService", () => {
     const result = await new WeddingService(repository).create("user-id", input);
     assert.equal(repository.created?.userId, "user-id");
     assert.equal(repository.created?.mainWeddingDate?.toISOString(), "2027-01-20T00:00:00.000Z");
-    assert.deepEqual(result, { ...record, mainWeddingDate: "2027-01-20" });
+    assert.deepEqual(result, {
+      id: record.id,
+      name: record.name,
+      brideName: record.brideName,
+      groomName: record.groomName,
+      managementType: record.managementType,
+      mainWeddingDate: "2027-01-20",
+      member: record.member,
+    });
   });
 
   it("serializes nullable dates consistently in list responses", async () => {

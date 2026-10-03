@@ -1,5 +1,16 @@
-import type { WeddingManagementType, WeddingMemberRole, WeddingSide } from "@make-my-marriage/shared";
+import type {
+  WeddingCurrency,
+  WeddingManagementType,
+  WeddingMemberRole,
+  WeddingSide,
+} from "@make-my-marriage/shared";
 import { prisma } from "../../config/database.js";
+import { Prisma } from "../../generated/prisma/client.js";
+import {
+  CurrencyChangeLockedError,
+  FinancialCurrencyRequiredError,
+  OverallBudgetBelowEventAllocationsError,
+} from "../../shared/errors.js";
 
 export type WeddingRecord = {
   id: string;
@@ -8,6 +19,8 @@ export type WeddingRecord = {
   groomName: string;
   managementType: WeddingManagementType;
   mainWeddingDate: Date | null;
+  budgetAmount: Prisma.Decimal | null;
+  currency: WeddingCurrency | null;
   member: { role: WeddingMemberRole; side: WeddingSide };
 };
 
@@ -26,6 +39,8 @@ export type UpdateWeddingRecord = {
   brideName?: string;
   groomName?: string;
   mainWeddingDate?: Date | null;
+  budgetAmount?: Prisma.Decimal | null;
+  currency?: WeddingCurrency;
 };
 
 export interface WeddingRepository {
@@ -42,6 +57,8 @@ const weddingSelection = {
   groomName: true,
   managementType: true,
   mainWeddingDate: true,
+  budgetAmount: true,
+  currency: true,
 } as const;
 
 export class PrismaWeddingRepository implements WeddingRepository {
@@ -114,11 +131,58 @@ export class PrismaWeddingRepository implements WeddingRepository {
   }
 
   async updateForActiveOwner(weddingId: string, userId: string, input: UpdateWeddingRecord): Promise<WeddingRecord | null> {
-    const result = await prisma.wedding.updateMany({
-      where: { id: weddingId, archivedAt: null, members: { some: { userId, isActive: true, role: "OWNER" } } },
-      data: input,
+    return prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`SELECT "id" FROM "weddings" WHERE "id" = ${weddingId}::uuid FOR UPDATE`;
+      const current = await transaction.wedding.findFirst({
+        where: {
+          id: weddingId,
+          archivedAt: null,
+          members: { some: { userId, isActive: true, role: "OWNER" } },
+        },
+        select: {
+          ...weddingSelection,
+          members: {
+            where: { userId, isActive: true, role: "OWNER" },
+            select: { role: true, side: true },
+            take: 1,
+          },
+        },
+      });
+      if (!current || !current.members[0]) return null;
+
+      if (input.currency !== undefined || input.budgetAmount !== undefined) {
+        const [eventBudgetCount, expenseCount] = await Promise.all([
+          transaction.event.count({ where: { weddingId, budgetAmount: { not: null } } }),
+          transaction.expense.count({ where: { weddingId } }),
+        ]);
+        const currencyChanges = input.currency !== undefined && input.currency !== current.currency;
+        if (currencyChanges && (current.budgetAmount !== null || eventBudgetCount > 0 || expenseCount > 0)) {
+          throw new CurrencyChangeLockedError();
+        }
+
+        const resultingCurrency = input.currency ?? current.currency;
+        if (input.budgetAmount !== undefined && input.budgetAmount !== null && !resultingCurrency) {
+          throw new FinancialCurrencyRequiredError();
+        }
+
+        if (input.budgetAmount !== undefined && input.budgetAmount !== null) {
+          const allocated = (await transaction.event.aggregate({
+            where: { weddingId },
+            _sum: { budgetAmount: true },
+          }))._sum.budgetAmount ?? new Prisma.Decimal(0);
+          if (allocated.greaterThan(input.budgetAmount)) {
+            throw new OverallBudgetBelowEventAllocationsError();
+          }
+        }
+      }
+
+      const { members, ...currentWedding } = current;
+      const wedding = await transaction.wedding.update({
+        where: { id: weddingId },
+        data: input,
+        select: weddingSelection,
+      });
+      return { ...currentWedding, ...wedding, member: members[0]! };
     });
-    if (result.count !== 1) return null;
-    return this.findForActiveMember(weddingId, userId);
   }
 }

@@ -11,6 +11,7 @@ const validEvent: EventFormValues = {
   endTime: "13:30",
   venueName: "",
   address: "",
+  budgetAmount: "",
   tasks: [],
 };
 
@@ -55,4 +56,12 @@ test("validates optional draft Tasks against the Event Side", () => {
   assert.equal(eventFormSchema.safeParse({ ...validEvent, side: "BOTH", tasks: [{ name: "Shared task", description: "", side: "BOTH", dueDate: "" }] }).success, true);
   assert.equal(eventFormSchema.safeParse({ ...validEvent, side: "BRIDE", tasks: [{ name: "Wrong task", description: "", side: "GROOM", dueDate: "" }] }).success, false);
   assert.equal(eventFormSchema.safeParse({ ...validEvent, side: "GROOM", tasks: [{ name: "Groom task", description: "", side: "GROOM", dueDate: "2027-01-10" }] }).success, true);
+});
+
+test("accepts exact optional Event budgets and rejects unsupported money formats", () => {
+  assert.equal(eventFormSchema.safeParse({ ...validEvent, budgetAmount: "" }).success, true);
+  assert.equal(eventFormSchema.safeParse({ ...validEvent, budgetAmount: "50" }).success, true);
+  assert.equal(eventFormSchema.safeParse({ ...validEvent, budgetAmount: "50.50" }).success, true);
+  assert.equal(eventFormSchema.safeParse({ ...validEvent, budgetAmount: "50.505" }).success, false);
+  assert.equal(eventFormSchema.safeParse({ ...validEvent, budgetAmount: "1,000" }).success, false);
 });

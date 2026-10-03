@@ -5,7 +5,8 @@ import type {
   WeddingEvent,
   WeddingSide,
 } from "@make-my-marriage/shared";
-import { EventNotFoundError, EventSideTaskConflictError, RequestValidationError } from "../../shared/errors.js";
+import { Prisma } from "../../generated/prisma/client.js";
+import { EventNotFoundError, RequestValidationError } from "../../shared/errors.js";
 import type { EventDraftTaskWriteRecord, EventRecord, EventRepository, EventWriteRecord } from "./event.repository.js";
 import { isTaskSideAllowedForEvent } from "../tasks/task.rules.js";
 
@@ -24,6 +25,7 @@ function formatTime(value: Date | null): string | null {
 function toEvent(record: EventRecord): WeddingEvent {
   return {
     ...record,
+    budgetAmount: record.budgetAmount?.toFixed(2) ?? null,
     eventDate: record.eventDate?.toISOString().slice(0, 10) ?? null,
     startTime: formatTime(record.startTime),
     endTime: formatTime(record.endTime),
@@ -64,6 +66,7 @@ function toWriteRecord(weddingId: string, value: {
   endTime?: string | null;
   venueName?: string | null;
   address?: string | null;
+  budgetAmount?: string | null;
 }): EventWriteRecord {
   return {
     weddingId,
@@ -75,6 +78,9 @@ function toWriteRecord(weddingId: string, value: {
     endTime: parseTime(value.endTime),
     venueName: value.venueName || null,
     address: value.address || null,
+    budgetAmount: value.budgetAmount === null || value.budgetAmount === undefined
+      ? null
+      : new Prisma.Decimal(value.budgetAmount),
   };
 }
 
@@ -122,12 +128,10 @@ export class EventService {
       endTime: input.endTime === undefined ? currentEvent.endTime : input.endTime,
       venueName: input.venueName === undefined ? currentEvent.venueName : input.venueName,
       address: input.address === undefined ? currentEvent.address : input.address,
+      budgetAmount: input.budgetAmount === undefined ? currentEvent.budgetAmount ?? null : input.budgetAmount,
     };
     validateSide(merged.side, managementType);
     validateSchedule(merged);
-    if (merged.side !== currentEvent.side && await this.repository.hasIncompatibleTasks(weddingId, eventId, merged.side)) {
-      throw new EventSideTaskConflictError();
-    }
     return toEvent(await this.repository.update(weddingId, eventId, toWriteRecord(weddingId, merged)));
   }
 }

@@ -11,6 +11,8 @@ export function EventTasksPanel({ event, weddingId }: { event: WeddingEvent; wed
   const returnTo = `/weddings/${weddingId}/events/${event.id}`;
   const handleTerminalAuth = useTerminalAuthRedirect(returnTo);
   const [tasks, setTasks] = useState<WeddingTask[]>();
+  const [meta, setMeta] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [page, setPage] = useState(1);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [busyTaskId, setBusyTaskId] = useState<string>();
@@ -18,23 +20,24 @@ export function EventTasksPanel({ event, weddingId }: { event: WeddingEvent; wed
 
   const load = useCallback(async () => {
     try {
-      const result = await listTasks(weddingId, { eventId: event.id, limit: 100 });
+      const result = await listTasks(weddingId, { eventId: event.id, page, limit: 20 });
       setTasks(result.tasks);
+      setMeta(result.meta);
       setError(undefined);
     } catch (requestError) {
       if (!handleTerminalAuth(requestError)) setError("Linked Tasks could not be loaded. Please try again.");
     }
-  }, [event.id, handleTerminalAuth, weddingId]);
+  }, [event.id, handleTerminalAuth, page, weddingId]);
 
   useEffect(() => {
     let active = true;
-    listTasks(weddingId, { eventId: event.id, limit: 100 })
-      .then((result) => { if (active) { setTasks(result.tasks); setError(undefined); } })
+    listTasks(weddingId, { eventId: event.id, page, limit: 20 })
+      .then((result) => { if (active) { setTasks(result.tasks); setMeta(result.meta); setError(undefined); } })
       .catch((requestError: unknown) => {
         if (active && !handleTerminalAuth(requestError)) setError("Linked Tasks could not be loaded. Please try again.");
       });
     return () => { active = false; };
-  }, [event.id, handleTerminalAuth, weddingId]);
+  }, [event.id, handleTerminalAuth, page, weddingId]);
 
   async function toggleStatus(task: WeddingTask) {
     setBusyTaskId(task.id);
@@ -53,9 +56,14 @@ export function EventTasksPanel({ event, weddingId }: { event: WeddingEvent; wed
     setBusyTaskId(deleteCandidate.id);
     try {
       await deleteTask(weddingId, deleteCandidate.id);
-      setTasks((items) => items?.filter((item) => item.id !== deleteCandidate.id));
       setNotice(`${deleteCandidate.name} was deleted.`);
       setDeleteCandidate(undefined);
+      if (tasks?.length === 1 && page > 1) {
+        setTasks(undefined);
+        setPage((value) => value - 1);
+      } else {
+        await load();
+      }
     } catch (requestError) {
       if (!handleTerminalAuth(requestError)) setError("The Task could not be deleted. Please try again.");
     } finally { setBusyTaskId(undefined); }
@@ -68,7 +76,7 @@ export function EventTasksPanel({ event, weddingId }: { event: WeddingEvent; wed
       {notice ? <p aria-live="polite" className="mt-5 rounded-xl bg-[#fff7f6] px-4 py-3 text-sm font-semibold text-[#671525]">{notice}</p> : null}
       {!tasks && !error ? <p aria-live="polite" className="mt-5 rounded-xl bg-[#f6f3f2] px-4 py-6 text-center text-sm text-[#665456]">Loading linked Tasks…</p> : null}
       {error ? <div className="mt-5 rounded-xl border border-[#e5b7b8] bg-[#fff2f1] px-4 py-5 text-center"><p className="text-sm text-[#8b1f2d]" role="alert">{error}</p><button className="mt-3 rounded-lg bg-[#852c3a] px-4 py-2 text-xs font-bold text-white" onClick={() => { setError(undefined); void load(); }} type="button">Try again</button></div> : null}
-      {tasks ? <div className="mt-5"><TaskList busyTaskId={busyTaskId} emptyMessage="No Tasks are linked to this Event yet." events={[event]} onDelete={setDeleteCandidate} onToggleStatus={toggleStatus} returnTo={returnTo} tasks={tasks} weddingId={weddingId} /></div> : null}
+      {tasks ? <div className="mt-5"><div className="mb-4 flex items-center justify-between gap-3"><p className="text-sm font-bold text-[#302526]">Linked Tasks</p><p className="text-xs font-semibold text-[#776566]">{meta.total} {meta.total === 1 ? "Task" : "Tasks"}</p></div><TaskList busyTaskId={busyTaskId} emptyMessage="No Tasks are linked to this Event yet." events={[event]} onDelete={setDeleteCandidate} onToggleStatus={toggleStatus} returnTo={returnTo} tasks={tasks} weddingId={weddingId} />{meta.totalPages > 1 ? <nav aria-label="Event Task pages" className="mt-6 flex items-center justify-between"><button className="rounded-lg border border-[#d9c9ca] bg-white px-4 py-2 text-sm font-bold text-[#554243] disabled:opacity-45" disabled={page <= 1} onClick={() => { setTasks(undefined); setPage((value) => value - 1); }} type="button">Previous</button><span className="text-xs font-semibold text-[#776566]">Page {meta.page} of {meta.totalPages}</span><button className="rounded-lg border border-[#d9c9ca] bg-white px-4 py-2 text-sm font-bold text-[#554243] disabled:opacity-45" disabled={page >= meta.totalPages} onClick={() => { setTasks(undefined); setPage((value) => value + 1); }} type="button">Next</button></nav> : null}</div> : null}
       <TaskDeleteDialog busy={Boolean(deleteCandidate && busyTaskId === deleteCandidate.id)} onCancel={() => setDeleteCandidate(undefined)} onConfirm={() => void confirmDelete()} task={deleteCandidate} />
     </section>
   );

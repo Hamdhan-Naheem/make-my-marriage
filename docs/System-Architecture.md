@@ -738,17 +738,19 @@ Backend services must project authorized response fields rather than serialize r
 
 - `BUDGET_VIEW` permits viewing wedding/event budget amounts.
 - `BUDGET_MANAGE` permits modifying those amounts; it does not substitute for `BUDGET_VIEW`.
-- `EXPENSE_VIEW` protects expense-derived totals, payer/payment information, and vendor financial fields, including agreed price, paid amount, remaining amount, and payment status.
-- `EXPENSE_MANAGE` protects financial writes; changing a vendor's agreed price also requires the relevant vendor-management capability.
+- `EXPENSE_VIEW` protects Expense records and Expense-derived totals.
+- `EXPENSE_MANAGE` protects Expense writes.
 - Owners have all these capabilities. For other members, neither a general module permission nor an explicit resource assignment grants financial access by itself.
 
-Combined values such as remaining budget require both the budget and expense viewing permissions. Financial permissions do not broaden resource access. Collaborators with financial permissions can receive permitted financial fields on assigned resources, but do not gain access to unrelated resources or raw expense records.
+Combined values such as remaining budget require both the budget and expense viewing permissions. Financial permissions do not broaden resource access.
 
 Omit unauthorized financial fields from wedding, event, vendor, dashboard, list, nested, and mutation responses. Do not send values to the browser and rely on hidden UI elements. Financial document downloads must also satisfy the relevant financial viewing permission in addition to document access.
 
 Mixed update requests must validate every changed field before any write. General wedding/event editing cannot change `budgetAmount` without `BUDGET_MANAGE`. The same rules apply to financial values supplied at creation.
 
 The frontend may hide unavailable actions, but it is never the authorization boundary.
+
+For the initial Budget and Expense milestone, every financial read and write is restricted to authenticated active Owners. The capability model above remains the approved future authorization boundary but does not enable Admin, Family Member, or Collaborator access in this milestone.
 
 The initial Events implementation intentionally permits only active Owners to list, view, create, and edit Events. Express verifies the authenticated Session, loads active wedding membership, checks the Owner role, and scopes every Event lookup by both `wedding_id` and Event ID. Other roles remain disabled until their capability, side, and explicit assignment checks are implemented.
 
@@ -765,6 +767,20 @@ The API records `completedAt` when status changes to `COMPLETED` and clears it w
 The service validates this compatibility during atomic Event-with-Tasks creation and whenever a Task changes its `eventId` or `side`. Before changing an Event's side, the Event service checks every linked Task and rejects the update if any Task would become incompatible. The user must first update or unlink those Tasks; the Event update never changes Task sides automatically.
 
 The Task Planner excludes reminders, priorities, subtasks, attachments, and other project-management features outside the approved scope.
+
+## Initial Budget and Expense Architecture
+
+The Budget and Expense milestone uses one financial currency per Wedding. `Wedding.currency` stores `LKR`, `USD`, `AUD`, or `SGD`; Event budgets and Expenses inherit it and never store another currency. The browser maps locale regions `LK`, `US`, `AU`, and `SG` to their matching supported currencies and otherwise suggests `LKR`; the Owner may always override the suggestion before saving. The backend validates only the submitted enum and does not trust or persist browser locale data. Currency may change only while the Wedding has no overall budget, no Event budgets, and no Expenses. Currency changes and first financial writes lock the Wedding row and recheck that invariant within the same transaction.
+
+The optional overall budget is stored on `Wedding.budgetAmount`, and each optional Event budget is stored on `Event.budgetAmount`. No separate Budget table is needed. Money enters and leaves the API as decimal strings and is parsed with exact decimal arithmetic. PostgreSQL stores financial amounts as `NUMERIC(18,2)`; application calculations must not pass through JavaScript `number` values.
+
+When an overall budget exists, Event budgets are allocations from it. Budget services serialize concurrent allocation changes by locking the Wedding row in a transaction, then reject any result where the sum of Event budgets exceeds the overall budget. Adding or lowering the overall budget applies the same check. Clearing the overall budget is allowed and leaves Event budgets independent. Budget mutations never update Expenses.
+
+Expenses belong to one Wedding and optionally one Event in that Wedding. Each Expense has a required name, positive amount, and side, plus optional description, date, category, and Event. Bride Side Weddings permit only `BRIDE`, Groom Side Weddings permit only `GROOM`, and Joint Weddings permit all three sides. Event-linked Expenses must also match their Event: `BRIDE` and `GROOM` Events accept only their matching side; `BOTH` Events accept every side. Updating an Expense validates its merged state. Changing an Event side is rejected if it would make a linked Expense incompatible.
+
+Budget summaries aggregate every Wedding Expense exactly once. Event-linked Expenses also contribute to their Event subtotal, while Wedding-wide Expenses contribute only to the overall subtotal. Spending may exceed a configured budget; summaries return warning fields and overage amounts, and Expense writes remain allowed.
+
+The Expense module provides wedding-scoped list, detail, create, update, and delete operations with pagination and optional Event, side, and category filters. Deletes require frontend confirmation. Payment status, partial payments, refunds, recurring Expenses, vendor relationships, receipts, attachments, currency conversion, and mixed-currency Weddings are outside this milestone.
 ---
 
 # 19. Authentication Architecture
@@ -1676,11 +1692,11 @@ Next.js Expense Form
  ↓
 Zod frontend validation
  ↓
-Redux/API action
+Same-origin API client
  ↓
-POST /api/weddings/100/expenses
+POST /api/v1/weddings/100/expenses
  ↓
-Nginx
+Next.js `/api/v1` rewrite
  ↓
 Express
  ↓
@@ -1688,7 +1704,7 @@ Authenticate JWT
  ↓
 Check WeddingMember
  ↓
-Check expense permission
+Require active Owner membership
  ↓
 Validate request
  ↓
@@ -2037,6 +2053,6 @@ The MVP therefore prioritizes understandable code, clear module boundaries, secu
 
 # 59. Implementation-Stage Questions
 
-The six implementation-stage groups remain recorded in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
+The implementation-stage groups remain recorded in [PRD Section 41](PRD.md#41-implementation-stage-questions). The initial Budget and Expense currency, decimal, allocation, over-budget, side, and API rules are finalized. Future vendor-to-Expense financial integration remains outside this milestone.
 
 Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session that rotation does not extend, a 24-hour single-use email-verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. Concurrent refresh and stale-token reuse use the Section 24 behavior. Cookie-setting and cookie-changing authentication requests require an exact trusted `WEB_ORIGIN`; cookies use SameSite=Lax and become Secure in production. Upload completion/failure handling, domain/HTTPS, and production secret management remain open. Logout-all remains optional. None of these questions weaken the finalized access or financial-security rules.

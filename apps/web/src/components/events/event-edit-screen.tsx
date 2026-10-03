@@ -6,7 +6,8 @@ import type { WeddingEvent } from "@make-my-marriage/shared";
 import { EventForm } from "@/components/events/event-form";
 import type { EventsWeddingContext } from "@/components/events/events-wedding-gate";
 import { WeddingWorkspaceShell } from "@/components/weddings/dashboard/wedding-workspace-shell";
-import { ApiError, getEvent, updateEvent } from "@/lib/api";
+import { ApiError, getBudgetSummary, getEvent, updateEvent } from "@/lib/api";
+import { addMoney } from "@/lib/money";
 import { useTerminalAuthRedirect } from "@/lib/use-terminal-auth-redirect";
 import { eventToFormValues, toEventRequest, type EventFormValues } from "@/lib/validation/event-schema";
 
@@ -16,21 +17,32 @@ export function EventEditScreen({ context, eventId }: { context: EventsWeddingCo
   const detailsPath = `/weddings/${wedding.id}/events/${eventId}`;
   const returnTo = `${detailsPath}/edit`;
   const handleTerminalAuth = useTerminalAuthRedirect(returnTo);
-  const [requestState, setRequestState] = useState<{ eventId: string; event?: WeddingEvent; error?: string }>({ eventId });
+  const [requestState, setRequestState] = useState<{ eventId: string; event?: WeddingEvent; maximumBudgetAmount?: string | null; error?: string }>({ eventId });
   const event = requestState.eventId === eventId ? requestState.event : undefined;
   const error = requestState.eventId === eventId ? requestState.error : undefined;
 
   useEffect(() => {
     let active = true;
-    getEvent(wedding.id, eventId)
-      .then((result) => { if (active) setRequestState({ eventId, event: result }); })
+    Promise.all([
+      getEvent(wedding.id, eventId),
+      wedding.currency ? getBudgetSummary(wedding.id) : Promise.resolve(undefined),
+    ])
+      .then(([result, summary]) => {
+        if (!active) return;
+        const available = summary?.overall.unallocatedBudgetAmount;
+        setRequestState({
+          eventId,
+          event: result,
+          maximumBudgetAmount: available === null || available === undefined ? null : addMoney(available, result.budgetAmount ?? "0.00"),
+        });
+      })
       .catch((requestError: unknown) => {
         if (!active || handleTerminalAuth(requestError)) return;
         const message = requestError instanceof ApiError && requestError.status === 404 ? "This Event was not found in the selected wedding." : "The Event could not be loaded. Please try again.";
         setRequestState({ eventId, error: message });
       });
     return () => { active = false; };
-  }, [eventId, handleTerminalAuth, wedding.id]);
+  }, [eventId, handleTerminalAuth, wedding.currency, wedding.id]);
 
   async function submit(values: EventFormValues) {
     try {
@@ -48,7 +60,7 @@ export function EventEditScreen({ context, eventId }: { context: EventsWeddingCo
         <div className="mb-7 mt-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#852c3a]">Event setup</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Edit Event</h1><p className="mt-2 text-sm leading-6 text-[#665456]">Update the Event while preserving its wedding workspace and approved side rules.</p></div>
         {!event && !error ? <p aria-live="polite" className="rounded-2xl border border-[#e8dfd8] bg-white p-8 text-center text-sm text-[#665456]">Loading Event…</p> : null}
         {error ? <div className="rounded-2xl border border-[#e8dfd8] bg-white p-8 text-center"><p role="alert" className="text-sm text-[#665456]">{error}</p><button className="mt-4 rounded-lg bg-[#852c3a] px-4 py-2 text-sm font-bold text-white" onClick={() => window.location.reload()} type="button">Try again</button></div> : null}
-        {event ? <EventForm initialValues={eventToFormValues(event)} managementType={wedding.managementType} mode="edit" onCancel={() => router.push(detailsPath)} onSubmit={submit} /> : null}
+        {event ? <EventForm budgetCurrency={wedding.currency} budgetSettingsHref={`/weddings/${wedding.id}/budget/settings`} initialValues={eventToFormValues(event)} managementType={wedding.managementType} maximumBudgetAmount={requestState.maximumBudgetAmount} mode="edit" onCancel={() => router.push(detailsPath)} onSubmit={submit} /> : null}
       </main>
     </WeddingWorkspaceShell>
   );

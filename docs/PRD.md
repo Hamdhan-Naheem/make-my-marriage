@@ -99,7 +99,7 @@ The primary goals are to:
 4. Support collaboration with controlled permissions.
 5. Simplify wedding task management.
 6. Help families manage budgets and expenses.
-7. Provide visibility into who is paying wedding expenses.
+7. Show clear spending totals and over-budget warnings without blocking expense entry.
 8. Help users discover nearby wedding vendors.
 9. Manage selected vendors and their payment information.
 10. Simplify guest management and invitation sharing.
@@ -414,10 +414,9 @@ Display:
 Display:
 
 - Overall budget
-- Total committed expenses
-- Amount paid
-- Outstanding amount
-- Remaining budget
+- Total expenses
+- Remaining budget when an overall budget exists
+- A warning when spending exceeds the overall budget
 
 ## Task Overview
 
@@ -585,7 +584,7 @@ Reminders, priorities, subtasks, attachments, dependencies, advanced workflows, 
 
 # 15. Overall Wedding Budget
 
-Every wedding can have an overall budget.
+Every wedding can have one optional overall budget. A missing budget does not prevent Expense tracking.
 
 Example:
 
@@ -597,35 +596,34 @@ LKR 5,000,000
 
 The application should calculate:
 
-- Overall budget
-- Total committed expenses
-- Total paid
+- Overall budget, when configured
+- Total Expenses across the Wedding
 - Remaining budget
-- Outstanding payments
+- Amount over budget when spending exceeds the budget
 
 Example:
 
 ```text
-Budget: LKR 5,000,000
+Budget: LKR 5,000,000.00
 
-Committed: LKR 3,500,000
+Expenses: LKR 5,250,000.00
 
-Paid: LKR 2,500,000
-
-Remaining Budget: LKR 1,500,000
-
-Outstanding Payments: LKR 1,000,000
+Over Budget: LKR 250,000.00
 ```
 
-Financial totals should be calculated from expense records to avoid inconsistent values.
+Spending may exceed the budget. The application shows a warning and the amount over budget but never blocks an Expense because of that warning.
 
-Budget viewing and budget modification require separate backend permission checks. General wedding/event access or modification permission does not grant permission to view or change a budget.
+Financial totals are calculated from Expense records. Event-linked Expenses contribute once to overall Wedding spending and to their Event's spending; they must never be added to the overall total a second time.
+
+Event budgets are allocations from the overall budget when one exists. Creating or lowering an overall budget is rejected if it would be less than the sum of current Event budgets. Setting the overall budget to `null` removes that allocation ceiling and does not alter Event budgets or Expenses.
+
+For this milestone, only an authenticated active Owner may view or modify budgets and financial summaries. The broader `BUDGET_VIEW` and `BUDGET_MANAGE` permission model remains deferred until non-Owner financial access is implemented.
 
 ---
 
 # 16. Event Budgets
 
-Each wedding event can have its own budget.
+Each Wedding Event can have one optional budget.
 
 Example:
 
@@ -646,87 +644,59 @@ Other
 LKR 500,000
 ```
 
-The application should show event spending against its allocated budget.
+When an overall Wedding budget exists, the sum of all Event budgets must not exceed it. Setting or increasing an Event budget beyond the remaining allocation is rejected. When no overall budget exists, Event budgets may be configured independently.
+
+The application shows Event spending against its budget and warns when spending exceeds it. Warnings never block Expenses.
 
 Expenses associated with an event contribute to both the event's spending and overall wedding spending.
+
+Changing or clearing any budget never changes existing Expenses.
 
 ---
 
 # 17. Expense Management
 
-Users can record and manage wedding expenses.
+Active Owners can record and manage Wedding-wide and Event-specific Expenses.
 
 Each expense should contain:
 
-- Expense name
-- Category
-- Total amount
-- Paid amount
-- Related event, if applicable
-- Related vendor, if applicable
-- Payer
-- Expense date
-- Notes
+- Expense name (required)
+- Amount (required)
+- Bride/Groom/Both side (required)
+- Description (optional)
+- Expense date (optional)
+- Category (optional)
+- Related Event (optional)
 
-Payment status is derived from the amount and paid amount.
+Wedding-wide Expenses have no related Event. Event-specific Expenses must reference an Event in the same Wedding and use a compatible side: `BRIDE` Events permit only `BRIDE` Expenses, `GROOM` Events permit only `GROOM` Expenses, and `BOTH` Events permit `BRIDE`, `GROOM`, or `BOTH` Expenses.
 
-Possible statuses:
+Expense sides also follow the Wedding type: Bride Side Weddings allow only `BRIDE`, Groom Side Weddings allow only `GROOM`, and Joint Weddings allow `BRIDE`, `GROOM`, or `BOTH`.
 
-- Unpaid
-- Partially Paid
-- Paid
+Owners may edit an Expense and may delete it only after explicit confirmation. Expense writes remain allowed when they put the Wedding or Event over budget.
 
 Example:
 
 ```text
 Expense: Wedding Hall
 
-Total Amount: LKR 500,000
-
-Paid Amount: LKR 200,000
-
-Outstanding: LKR 300,000
+Amount: LKR 500,000.00
 
 Event: Wedding
 
-Paid By: Bride Family
-
-Status: Partially Paid
+Side: Both
 ```
+
+Payment status, partial payments, refunds, payer tracking, recurring Expenses, vendor integration, receipts, and attachments are excluded from this milestone.
 
 ---
 
-# 18. Expense Responsibility
+# 18. Currency and Money Rules
 
-The platform must show who is responsible for wedding expenses.
+Each Wedding uses exactly one configured currency for all budgets and Expenses. Supported currencies are `LKR`, `USD`, `AUD`, and `SGD`. The UI suggests a default from the user's browser region or locale and always allows the Owner to override that suggestion before saving it.
 
-Payer options:
+Currency may change while the Wedding has no overall budget, no Event budget, and no Expenses. Once any of those financial records exists, a currency change is rejected. Currency conversion and mixed-currency Weddings are outside the MVP.
 
-- Bride
-- Groom
-- Bride Family
-- Groom Family
-- Shared
-- Other
-
-Example:
-
-```text
-Bride Family
-LKR 1,800,000
-
-Groom Family
-LKR 2,100,000
-
-Shared
-LKR 600,000
-```
-
-These summaries help families understand their respective financial contributions.
-
-The MVP will not process payments online.
-
-Expenses and payments are recorded manually.
+Money accepts ordinary decimal input such as `50`, `50.50`, and `0.50`, with at most two fractional digits. Financial calculations must use exact decimal arithmetic throughout the API and database. API money fields use decimal strings rather than JSON floating-point numbers.
 
 ---
 
@@ -744,8 +714,6 @@ Vendor information should include:
 - Address or location
 - Related events
 - Agreed price
-- Amount paid
-- Remaining amount
 - Notes
 - Documents
 
@@ -760,18 +728,12 @@ Event: Wedding
 
 Agreed Price: LKR 250,000
 
-Paid: LKR 100,000
-
-Remaining: LKR 150,000
-
 Documents:
 Quotation.pdf
 Contract.pdf
 ```
 
-A vendor may provide services for multiple wedding events.
-
-Vendor payments should be calculated from the related expense records.
+A vendor may provide services for multiple wedding events. The current Budget and Expense milestone does not link Expenses to vendors or calculate vendor payment status; that integration requires separate approval and design.
 
 ---
 
@@ -1294,7 +1256,7 @@ The MVP contains the following core features:
 12. Overall wedding budget
 13. Event budgets
 14. Expense management
-15. Expense payer tracking
+15. One Wedding currency from LKR, USD, AUD, or SGD
 16. Basic vendor management
 17. Nearby vendor discovery through Google Places
 18. Individual and family guest management
@@ -1469,9 +1431,9 @@ The following six groups remain open. Existing examples illustrate workflows, no
 
 1. **Guest invitation persistence and sharing:** Should regeneration update one current invitation row or retain historical rows with one active invitation? How will database uniqueness express that choice? How can organizers share again after leaving the creation screen when only a token hash is stored and the raw token cannot be retrieved?
 2. **Member invitation lifecycle:** How should expired invitations, resend/cancellation, and reinviting inactive members work while respecting the unique wedding/user membership constraint?
-3. **Financial boundaries:** How should differences between vendor agreed prices and expense commitments be presented or validated? What are the currency-consistency, decimal JSON representation, overpayment, and event-budget-versus-overall-budget rules? These questions do not reopen the finalized financial authorization rules.
+3. **Future vendor financial boundaries:** The Budget and Expense MVP now has finalized currency, decimal, allocation, over-budget, side, and API rules. Any future relationship between vendor agreed prices and Expenses must be designed when vendor integration is approved; it is excluded from the current milestone.
 4. **Guest and RSVP statistics:** Which values count invitation groups versus people? How should wedding-wide totals handle guests invited to multiple events? What happens if an invited count is reduced below an existing RSVP?
-5. **Incomplete API contracts within approved features:** Finalize dashboard outstanding-payment and vendor-payment details, payer summaries, Google Places View Details, and conversion of a typed location into coordinates. Do not add features beyond the approved workflows.
+5. **Incomplete API contracts within approved features:** Finalize Google Places View Details and conversion of a typed location into coordinates. Payment status, payer summaries, and vendor-payment details are excluded from the Budget and Expense MVP rather than unresolved requirements.
 6. **Lifecycle and operational details:** Define archived-wedding access, dependent-record deletion, upload types/sizes and confirmation checks, S3/database failure handling, domain/HTTPS, and production secret management. Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session that rotation does not extend, a 24-hour single-use email-verification token, refresh-token rotation, and protected-request Session checks for prompt revocation. One atomic refresh wins; a losing request inside a five-second concurrency window receives a non-revoking conflict, while later stale-token reuse revokes the Session. Cookie-changing authentication routes require the exact trusted web Origin. Logout-all remains optional until explicitly selected.
 
 The finalized collaborator, wedding-creation, ownership, delegation, financial-security, and no-shadcn/ui decisions take precedence over older illustrative wording in the other documents.
