@@ -2,6 +2,9 @@ import {
   API_BASE_PATH,
   eventListResponseSchema,
   eventResponseSchema,
+  expenseListResponseSchema,
+  expenseResponseSchema,
+  budgetSummaryResponseSchema,
   taskListResponseSchema,
   taskResponseSchema,
   createWeddingResponseSchema,
@@ -19,6 +22,10 @@ import {
   type WeddingWorkspace,
   type WeddingEvent,
   type WeddingSide,
+  type BudgetSummary,
+  type CreateExpenseRequest,
+  type UpdateExpenseRequest,
+  type WeddingExpense,
 } from "@make-my-marriage/shared";
 
 export type SafeUser = {
@@ -275,5 +282,61 @@ export async function updateTask(weddingId: string, taskId: string, input: Updat
 
 export async function deleteTask(weddingId: string, taskId: string): Promise<void> {
   const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/tasks/${encodeURIComponent(taskId)}`, { method: "DELETE" });
+  if (!response.ok) throw await parseError(response);
+}
+
+export type ExpenseListOptions = {
+  eventId?: string;
+  side?: WeddingSide;
+  category?: string;
+  page?: number;
+  limit?: number;
+};
+
+export async function getBudgetSummary(weddingId: string): Promise<BudgetSummary> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/budget-summary`);
+  if (!response.ok) throw await parseError(response);
+  return budgetSummaryResponseSchema.parse(await response.json()).data;
+}
+
+export async function listExpenses(weddingId: string, options: ExpenseListOptions = {}) {
+  const query = new URLSearchParams();
+  if (options.eventId) query.set("eventId", options.eventId);
+  if (options.side) query.set("side", options.side);
+  if (options.category) query.set("category", options.category);
+  query.set("page", String(options.page ?? 1));
+  query.set("limit", String(options.limit ?? 20));
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/expenses?${query}`);
+  if (!response.ok) throw await parseError(response);
+  const body = expenseListResponseSchema.parse(await response.json());
+  return { expenses: body.data, meta: body.meta };
+}
+
+export async function createExpense(weddingId: string, input: CreateExpenseRequest): Promise<WeddingExpense> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/expenses`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseError(response);
+  return expenseResponseSchema.parse(await response.json()).data;
+}
+
+export async function getExpense(weddingId: string, expenseId: string): Promise<WeddingExpense> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/expenses/${encodeURIComponent(expenseId)}`);
+  if (!response.ok) throw await parseError(response);
+  return expenseResponseSchema.parse(await response.json()).data;
+}
+
+export async function updateExpense(weddingId: string, expenseId: string, input: UpdateExpenseRequest): Promise<WeddingExpense> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/expenses/${encodeURIComponent(expenseId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseError(response);
+  return expenseResponseSchema.parse(await response.json()).data;
+}
+
+export async function deleteExpense(weddingId: string, expenseId: string): Promise<void> {
+  const response = await authenticatedRequest(`/weddings/${encodeURIComponent(weddingId)}/expenses/${encodeURIComponent(expenseId)}`, { method: "DELETE" });
   if (!response.ok) throw await parseError(response);
 }

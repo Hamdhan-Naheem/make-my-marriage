@@ -6,7 +6,7 @@ import type { WeddingManagementType, WeddingMemberRole, WeddingSide } from "@mak
 import { BrandMark } from "@/components/brand/brand-mark";
 import { DashboardAccountMenu } from "@/components/weddings/dashboard/dashboard-account-menu";
 
-type WorkspaceNavigationItem = "Dashboard" | "Events" | "Tasks" | "Settings";
+type WorkspaceNavigationItem = "Dashboard" | "Events" | "Tasks" | "Budget & Expenses" | "Settings";
 
 export type WeddingWorkspaceShellData = {
   weddingId?: string;
@@ -20,7 +20,6 @@ export type WeddingWorkspaceShellData = {
 const futureNavigation = [
   "Guests",
   "Invitations & RSVP",
-  "Budget & Expenses",
   "Vendors",
   "Vendor Discovery",
   "Documents",
@@ -50,6 +49,7 @@ export function WeddingWorkspaceShell({ activeItem, children, data, headerAction
   const dashboardHref = data.weddingId ? `/weddings/${data.weddingId}` : undefined;
   const eventsHref = data.weddingId ? `/weddings/${data.weddingId}/events` : undefined;
   const tasksHref = data.weddingId && data.memberRole === "OWNER" ? `/weddings/${data.weddingId}/tasks` : undefined;
+  const budgetHref = data.weddingId && data.memberRole === "OWNER" ? `/weddings/${data.weddingId}/budget` : undefined;
   const settingsHref = data.weddingId && data.memberRole === "OWNER" ? `/weddings/${data.weddingId}/settings` : undefined;
 
   const closeMobileNavigation = useCallback((restoreFocus = true) => {
@@ -78,6 +78,7 @@ export function WeddingWorkspaceShell({ activeItem, children, data, headerAction
             <li><WorkspaceLink active={activeItem === "Dashboard"} href={dashboardHref}>Dashboard</WorkspaceLink></li>
             <li><WorkspaceLink active={activeItem === "Events"} href={eventsHref}>Events</WorkspaceLink></li>
             <li><WorkspaceLink active={activeItem === "Tasks"} href={tasksHref}>Tasks</WorkspaceLink></li>
+            <li><WorkspaceLink active={activeItem === "Budget & Expenses"} href={budgetHref}>Budget & Expenses</WorkspaceLink></li>
             {futureNavigation.map((item) => <li key={item}><WorkspaceLink active={false}>{item}</WorkspaceLink></li>)}
           </ul>
         </nav>

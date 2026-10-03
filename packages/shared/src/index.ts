@@ -16,7 +16,18 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export const weddingManagementTypeSchema = z.enum(["BRIDE_SIDE", "GROOM_SIDE", "JOINT"]);
 export const weddingMemberRoleSchema = z.enum(["OWNER", "ADMIN", "FAMILY_MEMBER", "COLLABORATOR"]);
 export const weddingSideSchema = z.enum(["BRIDE", "GROOM", "BOTH"]);
+export const weddingCurrencySchema = z.enum(["LKR", "USD", "AUD", "SGD"]);
 export const taskStatusSchema = z.enum(["TO_DO", "COMPLETED"]);
+
+const decimalMoneyPattern = /^(0|[1-9]\d{0,15})(\.\d{1,2})?$/;
+export const moneyAmountSchema = z.string().regex(
+  decimalMoneyPattern,
+  "Use a non-negative amount with up to 2 decimal places and no separators.",
+);
+export const positiveMoneyAmountSchema = moneyAmountSchema.refine(
+  (value) => !/^0(?:\.0{1,2})?$/.test(value),
+  "Amount must be greater than zero.",
+);
 
 export const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date in YYYY-MM-DD format.").refine((value) => {
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -77,6 +88,8 @@ export const weddingWorkspaceSchema = z.object({
   groomName: z.string(),
   managementType: weddingManagementTypeSchema,
   mainWeddingDate: dateOnlySchema.nullable(),
+  currency: weddingCurrencySchema.nullable().optional(),
+  budgetAmount: z.string().nullable().optional(),
   member: weddingMemberContextSchema,
 });
 
@@ -97,6 +110,8 @@ export const updateWeddingRequestSchema = z.object({
   brideName: z.string().trim().min(1, "Enter the bride's name.").max(100, "Use 100 characters or fewer.").optional(),
   groomName: z.string().trim().min(1, "Enter the groom's name.").max(100, "Use 100 characters or fewer.").optional(),
   mainWeddingDate: futureWeddingDateSchema.nullable().optional(),
+  currency: weddingCurrencySchema.optional(),
+  budgetAmount: moneyAmountSchema.nullable().optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, { message: "Provide at least one wedding field to update." });
 
 const eventTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a valid time in HH:mm format.");
@@ -110,6 +125,7 @@ const eventWritableShape = {
   endTime: eventTimeSchema.nullable().optional(),
   venueName: z.string().trim().max(160, "Use 160 characters or fewer.").nullable().optional(),
   address: z.string().trim().max(500, "Use 500 characters or fewer.").nullable().optional(),
+  budgetAmount: moneyAmountSchema.nullable().optional(),
 };
 
 const taskWritableShape = {
@@ -157,6 +173,7 @@ export const eventSchema = z.object({
   endTime: eventTimeSchema.nullable(),
   venueName: z.string().nullable(),
   address: z.string().nullable(),
+  budgetAmount: z.string().nullable().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -204,6 +221,70 @@ export const taskListResponseSchema = z.object({
   }),
 });
 
+const expenseWritableShape = {
+  eventId: z.string().uuid("Event ID must be a valid UUID.").nullable().optional(),
+  name: z.string().trim().min(1, "Enter an expense name.").max(140, "Use 140 characters or fewer."),
+  description: z.string().trim().max(1000, "Use 1,000 characters or fewer.").nullable().optional(),
+  amount: positiveMoneyAmountSchema,
+  side: weddingSideSchema,
+  expenseDate: dateOnlySchema.nullable().optional(),
+  category: z.string().trim().max(100, "Use 100 characters or fewer.").nullable().optional(),
+};
+
+export const createExpenseRequestSchema = z.object(expenseWritableShape).strict();
+export const updateExpenseRequestSchema = z.object(expenseWritableShape).partial().strict().refine(
+  (value) => Object.keys(value).length > 0,
+  { message: "Provide at least one expense field to update." },
+);
+
+export const expenseSchema = z.object({
+  id: z.string().uuid(),
+  weddingId: z.string().uuid(),
+  eventId: z.string().uuid().nullable(),
+  name: z.string(),
+  description: z.string().nullable(),
+  amount: z.string(),
+  side: weddingSideSchema,
+  expenseDate: dateOnlySchema.nullable(),
+  category: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const expenseResponseSchema = z.object({ success: z.literal(true), data: expenseSchema });
+export const expenseListResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(expenseSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    limit: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+    totalPages: z.number().int().nonnegative(),
+  }),
+});
+
+const budgetPositionSchema = z.object({
+  budgetAmount: z.string().nullable(),
+  spentAmount: z.string(),
+  remainingAmount: z.string().nullable(),
+  isOverBudget: z.boolean().nullable(),
+  overByAmount: z.string().nullable(),
+});
+
+export const budgetSummarySchema = z.object({
+  currency: weddingCurrencySchema,
+  overall: budgetPositionSchema.extend({
+    allocatedEventBudgetAmount: z.string(),
+    unallocatedBudgetAmount: z.string().nullable(),
+    weddingWideSpentAmount: z.string(),
+  }),
+  events: z.array(budgetPositionSchema.extend({
+    eventId: z.string().uuid(),
+    eventName: z.string(),
+  })),
+});
+export const budgetSummaryResponseSchema = z.object({ success: z.literal(true), data: budgetSummarySchema });
+
 export type CreateWeddingRequest = z.infer<typeof createWeddingRequestSchema>;
 export type UpdateWeddingRequest = z.infer<typeof updateWeddingRequestSchema>;
 export type CreateEventRequest = z.infer<typeof createEventRequestSchema>;
@@ -217,4 +298,9 @@ export type TaskStatus = z.infer<typeof taskStatusSchema>;
 export type WeddingManagementType = z.infer<typeof weddingManagementTypeSchema>;
 export type WeddingMemberRole = z.infer<typeof weddingMemberRoleSchema>;
 export type WeddingSide = z.infer<typeof weddingSideSchema>;
+export type WeddingCurrency = z.infer<typeof weddingCurrencySchema>;
 export type WeddingWorkspace = z.infer<typeof weddingWorkspaceSchema>;
+export type CreateExpenseRequest = z.infer<typeof createExpenseRequestSchema>;
+export type UpdateExpenseRequest = z.infer<typeof updateExpenseRequestSchema>;
+export type WeddingExpense = z.infer<typeof expenseSchema>;
+export type BudgetSummary = z.infer<typeof budgetSummarySchema>;

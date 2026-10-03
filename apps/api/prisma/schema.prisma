@@ -23,6 +23,7 @@ model User {
   createdWeddings        Wedding[]               @relation("WeddingCreator")
   createdEvents          Event[]                 @relation("EventCreator")
   createdTasks           Task[]                  @relation("TaskCreator")
+  createdExpenses        Expense[]               @relation("ExpenseCreator")
   weddingMemberships     WeddingMember[]
 
   @@map("users")
@@ -53,6 +54,15 @@ enum WeddingSide {
   @@map("wedding_side")
 }
 
+enum WeddingCurrency {
+  LKR
+  USD
+  AUD
+  SGD
+
+  @@map("wedding_currency")
+}
+
 enum TaskStatus {
   TO_DO
   COMPLETED
@@ -67,6 +77,8 @@ model Wedding {
   groomName       String                @map("groom_name") @db.VarChar(100)
   managementType  WeddingManagementType @map("management_type")
   mainWeddingDate DateTime?             @map("main_wedding_date") @db.Date
+  budgetAmount    Decimal?              @map("budget_amount") @db.Decimal(18, 2)
+  currency        WeddingCurrency?
   createdByUserId String                @map("created_by_user_id") @db.Uuid
   createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -76,6 +88,7 @@ model Wedding {
   members   WeddingMember[]
   events    Event[]
   tasks     Task[]
+  expenses  Expense[]
 
   @@index([createdByUserId])
   @@map("weddings")
@@ -113,6 +126,7 @@ model Event {
   endTime         DateTime?   @map("end_time") @db.Time(0)
   venueName       String?     @map("venue_name") @db.VarChar(160)
   address         String?     @db.VarChar(500)
+  budgetAmount    Decimal?    @map("budget_amount") @db.Decimal(18, 2)
   createdByUserId String      @map("created_by_user_id") @db.Uuid
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -120,12 +134,40 @@ model Event {
   wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Restrict)
   createdBy User    @relation("EventCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   tasks     Task[]
+  expenses  Expense[]
 
   @@unique([weddingId, id])
   @@index([weddingId])
   @@index([weddingId, eventDate])
   @@index([createdByUserId])
   @@map("events")
+}
+
+model Expense {
+  id              String       @id @default(uuid()) @db.Uuid
+  weddingId       String       @map("wedding_id") @db.Uuid
+  eventId         String?      @map("event_id") @db.Uuid
+  name            String       @db.VarChar(140)
+  description     String?      @db.VarChar(1000)
+  amount          Decimal      @db.Decimal(18, 2)
+  side            WeddingSide
+  expenseDate     DateTime?    @map("expense_date") @db.Date
+  category        String?      @db.VarChar(100)
+  createdByUserId String       @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Restrict)
+  event     Event?  @relation(fields: [weddingId, eventId], references: [weddingId, id], onDelete: Restrict)
+  createdBy User    @relation("ExpenseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([weddingId, id])
+  @@index([weddingId])
+  @@index([weddingId, eventId])
+  @@index([weddingId, side])
+  @@index([weddingId, expenseDate])
+  @@index([createdByUserId])
+  @@map("expenses")
 }
 
 model Task {

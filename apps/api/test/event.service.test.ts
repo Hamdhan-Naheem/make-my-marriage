@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { WeddingSide } from "@make-my-marriage/shared";
 import { EventService } from "../src/modules/events/event.service.js";
 import type { EventRecord, EventRepository, EventWriteRecord } from "../src/modules/events/event.repository.js";
-import { RequestValidationError } from "../src/shared/errors.js";
+import { EventSideTaskConflictError, RequestValidationError } from "../src/shared/errors.js";
 
 const baseRecord: EventRecord = {
   id: crypto.randomUUID(),
@@ -16,6 +16,7 @@ const baseRecord: EventRecord = {
   endTime: new Date("1970-01-01T12:00:00.000Z"),
   venueName: null,
   address: null,
+  budgetAmount: null,
   createdAt: new Date("2026-09-23T00:00:00.000Z"),
   updatedAt: new Date("2026-09-23T00:00:00.000Z"),
 };
@@ -30,6 +31,7 @@ class FakeEventRepository implements EventRepository {
   async find(weddingId: string, eventId: string) { this.lastScope = { weddingId, eventId }; return this.record; }
   async update(weddingId: string, eventId: string, input: EventWriteRecord) {
     this.lastScope = { weddingId, eventId };
+    if (this.incompatibleTasks && input.side !== this.record?.side) throw new EventSideTaskConflictError();
     return { ...baseRecord, ...input, weddingId };
   }
   async hasIncompatibleTasks() { return this.incompatibleTasks; }

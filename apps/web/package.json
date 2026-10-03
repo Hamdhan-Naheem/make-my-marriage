@@ -13,7 +13,7 @@
     "start": "next start --port 3000",
     "lint": "eslint",
     "pretest": "npm run build --workspace=@make-my-marriage/shared",
-    "test": "tsx --test src/lib/validation/event-schema.test.ts src/lib/validation/task-schema.test.ts src/lib/validation/wedding-settings-schema.test.ts",
+    "test": "tsx --test src/components/weddings/dashboard/wedding-dashboard-empty.test.ts src/lib/validation/budget-schema.test.ts src/lib/validation/event-schema.test.ts src/lib/validation/expense-schema.test.ts src/lib/validation/task-schema.test.ts src/lib/validation/wedding-settings-schema.test.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

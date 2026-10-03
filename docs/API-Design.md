@@ -840,7 +840,7 @@ Example response:
 GET /api/v1/weddings/:weddingId
 ```
 
-Requires active wedding membership. An inaccessible, inactive, archived, or unknown wedding returns the same not-found response so IDs are not disclosed. This initial endpoint returns only non-financial workspace and current-member context. Future financial fields must remain subject to the documented permissions. Collaborators receive only the minimal workspace context needed for their assigned resources, not unrelated nested wedding data.
+Requires active wedding membership. An inaccessible, inactive, archived, or unknown wedding returns the same not-found response so IDs are not disclosed. Active Owners receive the Budget and Expense fields; other roles continue to receive only non-financial workspace and current-member context until non-Owner financial access is implemented.
 
 Response:
 
@@ -854,6 +854,8 @@ Response:
     "groomName": "Ahamed",
     "managementType": "JOINT",
     "mainWeddingDate": "2027-01-20",
+    "currency": "LKR",
+    "budgetAmount": "5000000.00",
     "member": {
       "role": "OWNER",
       "side": "GROOM"
@@ -870,7 +872,7 @@ Response:
 PATCH /api/v1/weddings/:weddingId
 ```
 
-An authenticated active Owner is required. The current Wedding Settings milestone accepts only `name`, `brideName`, `groomName`, and nullable `mainWeddingDate`. At least one field is required. `managementType` is read-only and rejected if supplied; wedding-type changes are outside this milestone.
+An authenticated active Owner is required. The endpoint accepts `name`, `brideName`, `groomName`, nullable `mainWeddingDate`, and the Budget and Expense fields `currency` and nullable `budgetAmount`. At least one field is required. `managementType` remains read-only.
 
 Example request:
 
@@ -883,7 +885,7 @@ Example request:
 }
 ```
 
-Set `mainWeddingDate` to `null` to return it to undecided. Updating the main wedding date never updates individual Event dates. Updating `budgetAmount` remains a separate future capability requiring `BUDGET_MANAGE`; a general wedding-edit capability is insufficient. Validate all requested fields before writing, and reject the entire request if any field is unauthorized.
+Set `mainWeddingDate` to `null` to return it to undecided. Updating the main wedding date never updates individual Event dates. The same endpoint accepts the Owner-only `currency` and `budgetAmount` fields defined in Section 48. Validate all requested fields before writing, and reject the entire mixed request if any field or resulting financial state is invalid.
 
 ---
 
@@ -955,10 +957,12 @@ Response example:
       "daysRemaining": 52
     },
     "budget": {
-      "total": 5000000,
-      "committed": 3200000,
-      "paid": 2100000,
-      "remaining": 1800000
+      "currency": "LKR",
+      "budgetAmount": "5000000.00",
+      "spentAmount": "5250000.00",
+      "remainingAmount": "-250000.00",
+      "isOverBudget": true,
+      "overByAmount": "250000.00"
     },
     "tasks": {
       "total": 42,
@@ -1195,7 +1199,7 @@ The backend stores permission overrides in `wedding_member_permissions`.
 
 Owners have full wedding access. Admins need member-management permission, cannot modify Owner permissions, and cannot grant capabilities they do not possess, including through replacement/removal of existing overrides. Evaluate the resulting effective capabilities before writing; reject unauthorized changes without partial updates.
 
-`BUDGET_VIEW` and `BUDGET_MANAGE` are separate checks. `EXPENSE_VIEW` protects expense/payment data and vendor financial fields; `EXPENSE_MANAGE` protects financial writes. Manage permission does not imply view permission. For Collaborators, permission overrides alone never grant resource access.
+`BUDGET_VIEW` and `BUDGET_MANAGE` are separate checks. `EXPENSE_VIEW` protects Expense records and derived totals; `EXPENSE_MANAGE` protects Expense writes. Manage permission does not imply view permission. For Collaborators, permission overrides alone never grant resource access. These keys remain reserved during the Owner-only Budget and Expense milestone.
 
 ## 35.1 Explicit Collaborator Resource Assignments
 
@@ -1257,7 +1261,7 @@ Optional filters:
 ?side=BOTH
 ```
 
-The current MVP endpoint supports the optional `side` filter. The illustrative `upcoming` filter remains deferred.
+The current MVP endpoint supports the optional `side` filter. Active-Owner Event responses include nullable `budgetAmount` as a decimal string. The illustrative `upcoming` filter remains deferred.
 
 ---
 
@@ -1278,7 +1282,8 @@ Request:
   "startTime": "10:00",
   "endTime": "15:00",
   "venueName": "Grand Ballroom",
-  "address": "Colombo, Sri Lanka"
+  "address": "Colombo, Sri Lanka",
+  "budgetAmount": "1500000.00"
 }
 ```
 
@@ -1290,9 +1295,9 @@ Status:
 
 Only `name` and `side` are required. Description, date, times, venue, and address are optional and may be `null`. A date can exist without times; times require a date; an end time requires a start time and must be later on the same day. Bride Side weddings accept only `BRIDE`, Groom Side weddings accept only `GROOM`, and Joint weddings accept `BRIDE`, `GROOM`, or `BOTH`.
 
-The Event creation request may also include an optional `tasks` array using the Task creation fields in Section 44, except `eventId` because the new Event supplies that relationship. Creating the Event and all included Tasks is atomic. An empty or omitted array creates no Tasks. Validate every supplied Task against the Event side: `BRIDE` accepts only `BRIDE`, `GROOM` accepts only `GROOM`, and `BOTH` accepts `BRIDE`, `GROOM`, or `BOTH`. Reject the entire request if any Task is incompatible; do not infer or rewrite Task sides.
+The Event creation request may also include an optional `tasks` array using the Task creation fields in Section 44, except `eventId` because the new Event supplies that relationship. Creating the Event, applying its optional budget allocation, and creating all included Tasks is atomic. An empty or omitted array creates no Tasks. Validate every supplied Task against the Event side: `BRIDE` accepts only `BRIDE`, `GROOM` accepts only `GROOM`, and `BOTH` accepts `BRIDE`, `GROOM`, or `BOTH`. Reject the entire request if any Task is incompatible; do not infer or rewrite Task sides.
 
-Event budgets, coordinates, and other unrelated fields are rejected in this milestone. When Event budgets are implemented, supplying `budgetAmount` will require `BUDGET_MANAGE` in addition to Event authorization.
+An active Owner may optionally supply `budgetAmount` as an exact decimal string or `null`. The allocation rules in Section 48 apply. Coordinates and unrelated fields remain rejected.
 
 ---
 
@@ -1325,7 +1330,7 @@ Updates are partial but must contain at least one supported Event field. The bac
 
 When an update changes the Event side, validate all linked Tasks against the proposed side. Reject the Event update if any linked Task would become incompatible. The caller must update or unlink those Tasks first; this endpoint does not change Task sides automatically.
 
-Changing `budgetAmount` remains unavailable. When implemented, it will require `BUDGET_MANAGE` in addition to event/resource authorization. A general event-management permission is insufficient. Reject mixed requests containing unauthorized fields before any write; omit budget values from the response without `BUDGET_VIEW`.
+An active Owner may change or clear `budgetAmount` using the exact decimal-string contract in Section 48. Reject the entire mixed request before any write when the resulting allocation or Event/Expense side state is invalid. Changing an Event side is also rejected when it would make any linked Expense incompatible.
 
 ---
 
@@ -1346,6 +1351,8 @@ Documents
 ```
 
 If significant dependent data exists, return a conflict or require explicit handling.
+
+For the Budget and Expense milestone, any linked Expense causes `409 EVENT_HAS_EXPENSES`. The Owner must edit those Expenses to clear/change their Event or delete them with confirmation before deleting the Event. Event deletion never cascades to Expenses.
 
 ---
 
@@ -1465,11 +1472,11 @@ The user interface must require explicit confirmation before sending the delete 
 
 # 48. Budget API Design
 
-The database intentionally has no separate Budget table.
+The database has no separate Budget table. For this milestone, every budget, Expense, and financial-summary endpoint requires an authenticated active Owner membership. The broader financial capability model remains reserved for later non-Owner access.
 
-Therefore budget management uses Wedding and Event APIs.
+Money request and response fields are decimal strings matching `^(0|[1-9]\d*)(\.\d{1,2})?$` and the `NUMERIC(18,2)` range. Exponent notation, signs, grouping separators, and more than two decimal places are rejected. Responses use canonical two-decimal strings. Services use Prisma `Decimal` or another exact decimal representation and never perform financial arithmetic with JavaScript `number` values.
 
-Update wedding budget:
+Configure Wedding currency and the optional overall budget through the Wedding endpoint:
 
 ```http
 PATCH /api/v1/weddings/:weddingId
@@ -1477,11 +1484,16 @@ PATCH /api/v1/weddings/:weddingId
 
 ```json
 {
-  "budgetAmount": 5000000
+  "currency": "LKR",
+  "budgetAmount": "5000000.00"
 }
 ```
 
-Update event budget:
+`currency` accepts `LKR`, `USD`, `AUD`, or `SGD`. `budgetAmount` accepts a non-negative decimal string or `null`; null clears the overall budget. At least one supported field is required. A request may set the initial currency and budget atomically.
+
+Currency changes are rejected with `409 CURRENCY_CHANGE_LOCKED` when the Wedding currently has an overall budget, any Event budget, or any Expense. Budget and Expense creation is rejected with `409 FINANCIAL_CURRENCY_REQUIRED` until currency is configured. Currency changes and every first financial write lock the Wedding row and recheck this invariant in the same transaction, preventing a concurrent currency change from racing a budget or Expense creation. The frontend suggests a currency from the browser locale, but the backend never trusts or persists a locale-derived value without the Owner's submitted selection.
+
+Configure an optional Event budget during Event creation or through the Event endpoint:
 
 ```http
 PATCH /api/v1/weddings/:weddingId/events/:eventId
@@ -1489,13 +1501,13 @@ PATCH /api/v1/weddings/:weddingId/events/:eventId
 
 ```json
 {
-  "budgetAmount": 1500000
+  "budgetAmount": "1500000.00"
 }
 ```
 
-Budget summaries are calculated from Expenses.
+`budgetAmount: null` clears the Event budget. When the overall budget is null, Event budgets are independent. When it exists, the backend locks the Wedding row and validates the resulting allocation in one transaction. Setting an Event budget that makes the Event-budget sum exceed the overall budget returns `409 EVENT_BUDGET_ALLOCATION_EXCEEDED`. Adding or lowering an overall budget below current Event allocations returns `409 OVERALL_BUDGET_BELOW_EVENT_ALLOCATIONS`. Clearing the overall budget remains allowed.
 
-`BUDGET_VIEW` controls viewing wedding/event budget amounts. `BUDGET_MANAGE` controls modifying them, including through the general wedding/event endpoints. Neither permission implies the other. Budget editing does not grant access to other wedding settings.
+Budget changes never create, update, delete, or redistribute Expenses. Expense writes remain allowed when spending exceeds a budget.
 
 ---
 
@@ -1513,28 +1525,35 @@ Response:
 {
   "success": true,
   "data": {
+    "currency": "LKR",
     "overall": {
-      "budget": 5000000,
-      "committed": 3500000,
-      "paid": 2500000,
-      "remaining": 1500000,
-      "outstanding": 1000000
+      "budgetAmount": "5000000.00",
+      "allocatedEventBudgetAmount": "4500000.00",
+      "unallocatedBudgetAmount": "500000.00",
+      "spentAmount": "5250000.00",
+      "weddingWideSpentAmount": "1150000.00",
+      "remainingAmount": "-250000.00",
+      "isOverBudget": true,
+      "overByAmount": "250000.00"
     },
     "events": [
       {
         "eventId": "uuid",
         "eventName": "Wedding",
-        "budget": 2000000,
-        "committed": 1600000,
-        "paid": 1000000,
-        "remaining": 400000
+        "budgetAmount": "2000000.00",
+        "spentAmount": "2100000.00",
+        "remainingAmount": "-100000.00",
+        "isOverBudget": true,
+        "overByAmount": "100000.00"
       }
     ]
   }
 }
 ```
 
-Budget values require `BUDGET_VIEW`; committed/paid/outstanding figures require `EXPENSE_VIEW`; combined remaining-budget figures require both. Omit fields without the required viewing permissions and scope event entries and aggregates to authorized resources. Deny the endpoint if the caller has no permission to view any of its financial data.
+Overall `spentAmount` sums every Expense in the Wedding exactly once. Event-linked Expenses also appear in their Event subtotal, but Event subtotals are never added back into the overall total. `weddingWideSpentAmount` includes only Expenses whose `eventId` is null.
+
+When an overall or Event budget is null, its `remainingAmount`, `isOverBudget`, and `overByAmount` are null. Spending totals remain available. The endpoint performs scoped decimal aggregation in PostgreSQL/Prisma and returns strings.
 
 ---
 
@@ -1546,7 +1565,7 @@ Base:
 /api/v1/weddings/:weddingId/expenses
 ```
 
-Expense reads require `EXPENSE_VIEW`; writes require `EXPENSE_MANAGE`, alongside the applicable wedding and resource restrictions. Financial capabilities do not expand Collaborator resource scope: assignment to an event or vendor does not grant direct access to raw expense records.
+Every Expense endpoint requires an authenticated active Owner. All reads and writes scope records by both `weddingId` and `expenseId`; linked Events are resolved with the route Wedding ID.
 
 ---
 
@@ -1560,12 +1579,16 @@ Filters:
 
 ```text
 ?eventId=uuid
-?vendorId=uuid
-?payer=BRIDE_FAMILY
+?eventId=none
+?side=BRIDE
 ?category=Photography
 ?page=1
 ?limit=20
 ```
+
+Without `eventId`, the endpoint returns Wedding-wide and Event-linked Expenses. `eventId=none` returns only Wedding-wide Expenses; a UUID returns only Expenses linked to that Event. `eventId`, `side`, and `category` may be combined. Pagination is bounded to a maximum limit of 100.
+
+The stable default order is `expenseDate DESC NULLS LAST`, then `createdAt DESC`, then `id DESC`. Category filtering is an exact case-insensitive match after trimming.
 
 ---
 
@@ -1580,45 +1603,53 @@ Request:
 ```json
 {
   "eventId": "event-uuid",
-  "vendorId": "vendor-uuid",
   "name": "Photography Package",
+  "description": "Ceremony and reception coverage",
   "category": "Photography",
-  "amount": 250000,
-  "paidAmount": 100000,
-  "payer": "GROOM_FAMILY",
-  "expenseDate": "2026-12-01",
-  "notes": "Advance payment completed"
+  "amount": "250000.00",
+  "side": "GROOM",
+  "expenseDate": "2026-12-01"
 }
 ```
 
-Backend derives:
+`name`, `amount`, and `side` are required. `description`, `expenseDate`, `category`, and `eventId` are optional and may be `null`. Trim text values; name is limited to 140 characters, description to 1,000, and category to 100. `expenseDate` is a real date-only value with no past/future restriction. Amount must be greater than zero and have no more than two decimal places. Unknown fields, including currency, paid amount, payment status, payer, vendor, recurrence, receipt, and attachment fields, are rejected.
+
+Expense sides follow the Wedding type. When `eventId` is supplied, the Event must belong to the route Wedding and the Expense side must be compatible with the Event side. A cross-Wedding or inaccessible Event is returned as not found; an incompatible side is a validation error. Spending above either budget does not reject creation.
+
+Status:
 
 ```text
-paymentStatus
+201 Created
 ```
 
-from:
+# 53. Get and Update Expense
 
-```text
-amount
-paidAmount
+## Get Expense
+
+```http
+GET /api/v1/weddings/:weddingId/expenses/:expenseId
 ```
 
----
+Returns the Wedding-scoped Expense with its exact decimal-string amount.
 
-# 53. Update Expense
+## Update Expense
 
 ```http
 PATCH /api/v1/weddings/:weddingId/expenses/:expenseId
 ```
 
+Updates are partial but must include at least one supported Expense field. Optional fields and `eventId` may be set to `null`; `name`, `amount`, and `side` may not be null. The backend merges the update with the stored Expense before validating Wedding side, Event ownership, Event-side compatibility, date, and amount.
+
 Example:
 
 ```json
 {
-  "paidAmount": 250000
+  "amount": "275000.50",
+  "category": "Photography and video"
 }
 ```
+
+Changing the linked Event or side applies the same compatibility rules as creation. Spending warnings never block the update.
 
 ---
 
@@ -1627,6 +1658,8 @@ Example:
 ```http
 DELETE /api/v1/weddings/:weddingId/expenses/:expenseId
 ```
+
+The frontend requires explicit confirmation before sending the request. The backend performs a Wedding-scoped hard delete and returns `204 No Content`. Deletion never changes a budget or currency.
 
 ---
 
@@ -1689,7 +1722,7 @@ Base:
 /api/v1/weddings/:weddingId/vendors
 ```
 
-Collaborator access requires an explicit vendor assignment and the relevant capability. Vendor list/detail/mutation responses must omit `agreedPrice`, `paidAmount`, `remainingAmount`, payment status, and other restricted financial fields without `EXPENSE_VIEW`. Assignment does not grant access to raw linked expenses or unassigned events/documents.
+Collaborator access requires an explicit vendor assignment and the relevant capability. The Budget and Expense milestone does not link vendors to Expenses or return vendor paid, remaining, or payment-status values. Assignment does not grant access to raw Expenses or unassigned events/documents.
 
 ---
 
@@ -1723,8 +1756,7 @@ Request:
   "source": "GOOGLE_PLACES",
   "googlePlaceId": "google-place-id",
   "category": "PHOTOGRAPHER",
-  "agreedPrice": 250000,
-  "currency": "LKR",
+  "agreedPrice": "250000.00",
   "notes": "Includes wedding album",
   "eventIds": [
     "event-1",
@@ -1752,8 +1784,7 @@ Request:
   "manualPhone": "+94771234567",
   "manualAddress": "Colombo",
   "category": "DECORATOR",
-  "agreedPrice": 300000,
-  "currency": "LKR",
+  "agreedPrice": "300000.00",
   "eventIds": [
     "event-uuid"
   ]
@@ -1768,7 +1799,7 @@ Request:
 GET /api/v1/weddings/:weddingId/vendors/:vendorId
 ```
 
-Response may contain calculated financial values:
+The vendor response may contain its agreed price in the Wedding currency, subject to the future vendor authorization milestone:
 
 ```json
 {
@@ -1776,17 +1807,13 @@ Response may contain calculated financial values:
   "data": {
     "id": "uuid",
     "category": "PHOTOGRAPHER",
-    "agreedPrice": 250000,
-    "paidAmount": 100000,
-    "remainingAmount": 150000,
+    "agreedPrice": "250000.00",
     "events": []
   }
 }
 ```
 
-`paidAmount` and `remainingAmount` are calculated from Expenses.
-
-The example assumes `EXPENSE_VIEW`. Omit the financial fields for other callers and filter nested events to authorized records. A non-financial vendor view must not reveal amounts through alternative field names or derived summaries.
+The current Expense API does not calculate vendor payment values. Filter nested Events to authorized records and do not expose raw Expenses through vendor responses.
 
 ---
 
@@ -1800,12 +1827,12 @@ Example:
 
 ```json
 {
-  "agreedPrice": 275000,
+  "agreedPrice": "275000.00",
   "notes": "Added extra album"
 }
 ```
 
-Changing `agreedPrice` requires `EXPENSE_MANAGE` in addition to vendor-management and resource authorization. The same check applies when supplying an agreed price during vendor creation (Sections 59–60). Validate mixed updates before any write and filter their responses independently by viewing permissions.
+Vendor agreed-price authorization is part of the future vendor milestone. It does not create or update an Expense and is not implemented by the Budget and Expense milestone.
 
 ---
 
@@ -2531,8 +2558,8 @@ For every wedding-scoped operation, enforce the finalized rules:
 |---|---|
 | View wedding/event budget amount | `BUDGET_VIEW` |
 | Create/change wedding/event budget amount | `BUDGET_MANAGE` |
-| View expense-derived totals, payer/payment information, vendor agreed/paid/remaining amounts or payment status | `EXPENSE_VIEW` |
-| Modify expense financial data or vendor agreed price | `EXPENSE_MANAGE`, plus relevant module-management capability |
+| View Expense records or Expense-derived totals | `EXPENSE_VIEW` |
+| Modify Expense data | `EXPENSE_MANAGE` |
 | View remaining budget or another figure combining budget and expenses | Both `BUDGET_VIEW` and `EXPENSE_VIEW` |
 
 Viewing and modification are separate checks. Owners have all capabilities. Financial permissions never bypass resource assignment or side restrictions. Build authorized response objects before sending data; never return raw Prisma objects containing restricted values. These rules also apply to nested, list, create/update, and dashboard responses.
@@ -3104,8 +3131,8 @@ This API design directly supports the approved PRD, database design, and system 
 
 # 106. Implementation-Stage Questions
 
-Retain the six groups in [PRD Section 41](PRD.md#41-implementation-stage-questions) as open questions: guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
+Retain the implementation-stage groups in [PRD Section 41](PRD.md#41-implementation-stage-questions). The Budget and Expense currency, decimal, allocation, over-budget, side, and API rules are finalized; vendor-to-Expense finance remains outside this milestone.
 
-In particular, invitation regeneration/storage and later resharing, inactive-member reinvitation, currency/decimal/overpayment rules, group-versus-person counting and cross-event totals, and reduced invited counts are not finalized here. Dashboard outstanding-payment/vendor details, payer summaries, Google Places View Details, and typed-location lookup contracts still need completion within approved scope.
+Invitation regeneration/storage and later resharing, inactive-member reinvitation, group-versus-person counting, cross-event guest totals, reduced invited counts, Google Places View Details, and typed-location lookup contracts remain unresolved. Payment status, payer summaries, and vendor-payment details are excluded from the current Budget and Expense scope.
 
 Archive/deletion behavior, upload completion/failure handling, and production HTTPS/secrets remain open. Authentication now uses a 15-minute access JWT, a fixed seven-day refresh session, a 24-hour verification token, refresh-token rotation, protected-request Session checks, the Section 14 concurrent/stale-token behavior, and exact trusted-Origin checks on cookie-changing routes. Logout-all remains optional. Existing example payloads and flows do not silently settle the remaining questions, and none of them override the finalized access or financial-security rules.

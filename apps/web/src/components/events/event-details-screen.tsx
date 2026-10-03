@@ -7,6 +7,7 @@ import type { EventsWeddingContext } from "@/components/events/events-wedding-ga
 import { formatEventDate, formatEventTime, sideLabel } from "@/components/events/events-overview";
 import { WeddingWorkspaceShell } from "@/components/weddings/dashboard/wedding-workspace-shell";
 import { EventTasksPanel } from "@/components/tasks/event-tasks-panel";
+import { EventExpensesPanel } from "@/components/budget/event-expenses-panel";
 import { ApiError, getEvent } from "@/lib/api";
 import { useTerminalAuthRedirect } from "@/lib/use-terminal-auth-redirect";
 
@@ -37,13 +38,13 @@ export function EventDetailsScreen({ context, eventId }: { context: EventsWeddin
         <Link className="inline-flex rounded-lg px-2 py-1 text-sm font-bold text-[#852c3a] hover:bg-[#f4e8e5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#852c3a]" href={overviewPath}>← Back to Events</Link>
         {!event && !error ? <EventDetailsStatus message="Loading Event details…" /> : null}
         {error ? <EventDetailsStatus message={error} retry={() => window.location.reload()} /> : null}
-        {event ? <EventDetails event={event} eventId={eventId} ownerName={ownerName} weddingId={wedding.id} weddingName={wedding.name} /> : null}
+        {event ? <EventDetails currency={wedding.currency} event={event} eventId={eventId} ownerName={ownerName} weddingId={wedding.id} weddingName={wedding.name} /> : null}
       </main>
     </WeddingWorkspaceShell>
   );
 }
 
-function EventDetails({ event, eventId, ownerName, weddingId, weddingName }: { event: WeddingEvent; eventId: string; ownerName: string; weddingId: string; weddingName: string }) {
+function EventDetails({ currency, event, eventId, ownerName, weddingId, weddingName }: { currency: EventsWeddingContext["wedding"]["currency"]; event: WeddingEvent; eventId: string; ownerName: string; weddingId: string; weddingName: string }) {
   return <>
     <header className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
       <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{event.name}</h1><span className="rounded-full bg-[#ffdad2] px-2.5 py-1 text-xs font-bold text-[#703628]">{sideLabel(event.side)}</span></div><p className="mt-2 text-xs text-[#776566]">Wedding Owner view · {ownerName}</p></div>
@@ -61,6 +62,7 @@ function EventDetails({ event, eventId, ownerName, weddingId, weddingName }: { e
         {event.venueName || event.address ? <><p className="text-xs font-semibold uppercase tracking-wide text-[#887273]">Venue</p><p className="mt-2 font-bold text-[#302526]">{event.venueName || "Venue name not added"}</p>{event.address ? <p className="mt-3 text-sm leading-6 text-[#665456]">{event.address}</p> : null}</> : <p className="text-sm leading-6 text-[#665456]">Location not added yet.</p>}
       </DetailsCard>
     </div>
+    <EventExpensesPanel currency={currency} event={event} weddingId={weddingId} />
     <EventTasksPanel event={event} weddingId={weddingId} />
   </>;
 }

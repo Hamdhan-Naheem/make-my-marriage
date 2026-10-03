@@ -101,3 +101,51 @@ export class EventSideTaskConflictError extends AppError {
     super(409, "EVENT_SIDE_TASK_CONFLICT", "Resolve incompatible linked Tasks before changing the Event Side.");
   }
 }
+
+export class BudgetOwnerAccessRequiredError extends AppError {
+  constructor() {
+    super(403, "BUDGET_OWNER_ACCESS_REQUIRED", "Only an active wedding Owner can access budgets in this milestone.");
+  }
+}
+
+export class ExpensesOwnerAccessRequiredError extends AppError {
+  constructor() {
+    super(403, "EXPENSES_OWNER_ACCESS_REQUIRED", "Only an active wedding Owner can manage Expenses in this milestone.");
+  }
+}
+
+export class ExpenseNotFoundError extends AppError {
+  constructor() {
+    super(404, "EXPENSE_NOT_FOUND", "Expense not found.");
+  }
+}
+
+export class FinancialCurrencyRequiredError extends AppError {
+  constructor() {
+    super(409, "FINANCIAL_CURRENCY_REQUIRED", "Configure the Wedding currency before adding budgets or Expenses.");
+  }
+}
+
+export class CurrencyChangeLockedError extends AppError {
+  constructor() {
+    super(409, "CURRENCY_CHANGE_LOCKED", "Currency cannot change while a budget or Expense exists.");
+  }
+}
+
+export class EventBudgetAllocationExceededError extends AppError {
+  constructor() {
+    super(409, "EVENT_BUDGET_ALLOCATION_EXCEEDED", "Total Event budgets cannot exceed the overall Wedding budget.");
+  }
+}
+
+export class OverallBudgetBelowEventAllocationsError extends AppError {
+  constructor() {
+    super(409, "OVERALL_BUDGET_BELOW_EVENT_ALLOCATIONS", "The overall Wedding budget cannot be lower than current Event allocations.");
+  }
+}
+
+export class EventSideExpenseConflictError extends AppError {
+  constructor() {
+    super(409, "EVENT_SIDE_EXPENSE_CONFLICT", "Resolve incompatible linked Expenses before changing the Event Side.");
+  }
+}

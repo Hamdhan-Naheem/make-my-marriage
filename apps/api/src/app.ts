@@ -7,6 +7,8 @@ import { healthRouter } from "./modules/health/health.routes.js";
 import { eventRouter } from "./modules/events/event.routes.js";
 import { taskRouter } from "./modules/tasks/task.routes.js";
 import { weddingRouter } from "./modules/weddings/wedding.routes.js";
+import { expenseRouter } from "./modules/expenses/expense.routes.js";
+import { budgetRouter } from "./modules/budgets/budget.routes.js";
 
 export const app = express();
 
@@ -17,6 +19,8 @@ app.use(API_BASE_PATH, healthRouter);
 app.use(`${API_BASE_PATH}/auth`, authRouter);
 app.use(`${API_BASE_PATH}/weddings/:weddingId/events`, eventRouter);
 app.use(`${API_BASE_PATH}/weddings/:weddingId/tasks`, taskRouter);
+app.use(`${API_BASE_PATH}/weddings/:weddingId/expenses`, expenseRouter);
+app.use(`${API_BASE_PATH}/weddings/:weddingId/budget-summary`, budgetRouter);
 app.use(`${API_BASE_PATH}/weddings`, weddingRouter);
 app.use(notFound);
 app.use(errorHandler);

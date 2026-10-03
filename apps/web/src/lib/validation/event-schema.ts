@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dateOnlySchema, type CreateEventRequest, type WeddingEvent, type WeddingManagementType, type WeddingSide } from "@make-my-marriage/shared";
+import { dateOnlySchema, moneyAmountSchema, type CreateEventRequest, type WeddingEvent, type WeddingManagementType, type WeddingSide } from "@make-my-marriage/shared";
 
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -12,6 +12,7 @@ export const eventFormSchema = z.object({
   endTime: z.string().refine((value) => value === "" || timePattern.test(value), "Enter a valid end time."),
   venueName: z.string().trim().max(160, "Use 160 characters or fewer."),
   address: z.string().trim().max(500, "Use 500 characters or fewer."),
+  budgetAmount: z.string().refine((value) => value === "" || moneyAmountSchema.safeParse(value).success, "Use a non-negative amount with up to 2 decimal places."),
   tasks: z.array(z.object({
     name: z.string().trim().min(1, "Enter a task name.").max(140, "Use 140 characters or fewer."),
     description: z.string().trim().max(1000, "Use 1,000 characters or fewer."),
@@ -56,6 +57,7 @@ export function toEventRequest(values: EventFormValues): CreateEventRequest {
     endTime: values.endTime || null,
     venueName: values.venueName || null,
     address: values.address || null,
+    budgetAmount: values.budgetAmount || null,
     ...(values.tasks.length > 0 ? { tasks: values.tasks.map((task) => ({ name: task.name, description: task.description || null, side: task.side, dueDate: task.dueDate || null })) } : {}),
   };
 }
@@ -70,6 +72,7 @@ export function eventToFormValues(event: WeddingEvent): EventFormValues {
     endTime: event.endTime ?? "",
     venueName: event.venueName ?? "",
     address: event.address ?? "",
+    budgetAmount: event.budgetAmount ?? "",
     tasks: [],
   };
 }

@@ -142,11 +142,7 @@ Use:
 DECIMAL / NUMERIC
 ```
 
-Example:
-
-```text
-NUMERIC(14,2)
-```
+Use `NUMERIC(18,2)` for every budget and Expense amount. Prisma maps these columns to `Decimal`; services keep values as exact decimal objects and serialize API money as strings. Never convert financial values through JavaScript `number` arithmetic.
 
 This is suitable for values such as:
 
@@ -460,13 +456,15 @@ bride_name
 groom_name
 management_type
 main_wedding_date (nullable)
+budget_amount (nullable)
+currency (nullable)
 created_by_user_id
 created_at
 updated_at
 archived_at
 ```
 
-The initial wedding-creation migration stores the workspace identity, management type, optional main wedding date, creator, and lifecycle timestamps. `budget_amount` and `currency` remain part of the approved future budget design in Section 11 and will be added with that feature rather than collected during onboarding.
+The initial wedding-creation migration stores the workspace identity, management type, optional main wedding date, creator, and lifecycle timestamps. The Budget and Expense migration adds nullable `budget_amount NUMERIC(18,2)` and nullable `currency` fields. Currency remains null until the Owner configures financial settings; financial writes require it to be set.
 
 ---
 
@@ -502,16 +500,18 @@ The same wedding workspace remains.
 
 # 11. Wedding Budget
 
-The overall budget will be stored directly on the Wedding.
-
-Example:
+The optional overall budget is stored directly on the Wedding:
 
 ```text
-budget_amount = 5000000.00
-currency = LKR
+budget_amount NUMERIC(18,2) NULL
+currency WeddingCurrency NULL
 ```
 
-We do not need a separate WeddingBudget table in the MVP because every wedding has only one overall budget.
+`WeddingCurrency` permits `LKR`, `USD`, `AUD`, and `SGD`. Event budgets and Expenses inherit this one Wedding currency and do not have currency columns. A nullable currency supports existing Weddings before financial setup. The service rejects budget or Expense creation until a currency is configured.
+
+Currency may change only when `weddings.budget_amount` is null, every Event budget is null, and no Expense row exists. Currency changes and first financial writes lock the Wedding row and check those conditions in the same transaction so concurrent requests cannot create mixed-currency data.
+
+No separate WeddingBudget table is required because every Wedding has only one overall budget.
 
 Actual spending is calculated using Expenses.
 
@@ -524,12 +524,16 @@ SUM(expenses.amount)
 = 3,500,000
 ```
 
-Then:
+Then, when a budget exists:
 
 ```text
 Remaining budget
 = 5,000,000 - 3,500,000
 ```
+
+Spending may make the result negative. Store no remaining or over-budget column; derive `remaining`, `isOverBudget`, and `overBy` from the current budget and Expense sum.
+
+When an overall budget exists, lock the Wedding row while changing overall or Event budgets and reject any result where `SUM(events.budget_amount)` exceeds it. Adding or lowering the overall budget uses the same rule. Clearing it to null is allowed and leaves Event budgets and Expenses unchanged.
 
 ---
 
@@ -740,12 +744,14 @@ Queries must apply these restrictions to lists, nested relations, search, totals
 Keep existing financial storage and calculations. Protect their output in the backend:
 
 - Wedding/event `budget_amount` requires `BUDGET_VIEW`; modifying it requires `BUDGET_MANAGE`.
-- Expense-derived amounts, payer/payment information, and vendor financial fields (`agreed_price`, calculated paid/remaining amounts and payment status) require `EXPENSE_VIEW`.
+- Expense records and Expense-derived amounts require `EXPENSE_VIEW`.
 - Values combining budgets and expenses, such as remaining budget, require both viewing permissions.
 - Financial writes require their corresponding manage permission in addition to resource/module authorization.
 - Financial document access additionally requires the relevant financial viewing permission.
 
 Build response projections from allowed fields. Never serialize raw financial columns or unrestricted aggregates into wedding, event, vendor, dashboard, nested, list, or mutation responses. Authorized financial capabilities do not broaden resource access; an assigned vendor does not expose its raw expense records to a Collaborator. Omit restricted fields before returning data to the frontend.
+
+For the initial Budget and Expense milestone, only authenticated active Owners may read or write any budget, Expense, or financial summary. The capability keys above remain reserved for the future non-Owner authorization milestone.
 ---
 
 # 18. Wedding Member Invitations
@@ -817,12 +823,13 @@ start_time
 end_time
 venue_name
 address
+budget_amount
 created_by_user_id
 created_at
 updated_at
 ```
 
-For the initial Events milestone, `event_date`, `start_time`, `end_time`, `description`, `venue_name`, and `address` are nullable. Times are stored separately from the local calendar date and represent same-day scheduling. A start or end time requires an event date, an end time requires a start time, and the end time must be later than the start time. Event budget and coordinates remain deferred to their approved future features.
+`event_date`, `start_time`, `end_time`, `description`, `venue_name`, `address`, and `budget_amount` are nullable. Times are stored separately from the local calendar date and represent same-day scheduling. A start or end time requires an event date, an end time requires a start time, and the end time must be later on the same day. Coordinates remain deferred.
 
 The `wedding_id` and `created_by_user_id` foreign keys use `ON DELETE RESTRICT`. Event reads and writes always include the wedding ID in their database scope. The composite uniqueness of `(wedding_id, id)` supports future same-wedding resource-access foreign keys.
 
@@ -870,7 +877,7 @@ GROOM
 
 # 21. Event Budget
 
-Each event has one optional budget.
+Each Event has one optional `budget_amount NUMERIC(18,2)`.
 
 Therefore:
 
@@ -897,6 +904,8 @@ SUM(
 ```
 
 No separate EventBudget table is required.
+
+When the Wedding has an overall budget, Event budgets are allocations and their total may not exceed it. Without an overall budget, Event budgets are independent. Event spending may exceed an Event budget; return a warning rather than rejecting an Expense. Budget changes never update Expense rows.
 
 ---
 
@@ -972,73 +981,48 @@ expenses
 id
 wedding_id
 event_id
-vendor_id
 name
-category
+description
 amount
-paid_amount
-payer
+side
 expense_date
-notes
+category
 created_by_user_id
 created_at
 updated_at
 ```
 
-`event_id` is optional.
+`event_id`, `description`, `expense_date`, and `category` are optional. Use `VARCHAR(140)` for `name`, `VARCHAR(1000)` for `description`, `VARCHAR(100)` for `category`, `NUMERIC(18,2)` for `amount`, the existing `WeddingSide` enum for `side`, and `DATE` for `expense_date`.
 
-`vendor_id` is optional.
+Add `UNIQUE(wedding_id, id)` and a composite optional foreign key `(wedding_id, event_id) -> events(wedding_id, id)` so an Expense cannot link an Event from another Wedding. Use `ON DELETE RESTRICT`; an Event with Expenses must first have those Expenses unlinked or deleted through explicit user actions.
+
+The service validates Wedding-type and Event-side compatibility on create and on the merged state of an update. Before an Event side change, reject the update if any linked Expense would become incompatible. Expense deletion is a confirmed hard delete for this milestone.
+
+There are no `currency`, `vendor_id`, `paid_amount`, `payer`, payment-status, receipt, or attachment columns in this milestone.
 
 ---
 
 # 26. Expense Amounts
 
-Example:
+Expense amounts must be positive and have at most two fractional digits. Budgets may be zero or positive. Database check constraints enforce `amount > 0`, `weddings.budget_amount >= 0` when non-null, and `events.budget_amount >= 0` when non-null.
+
+Examples:
 
 ```text
-amount = 500000
-paid_amount = 200000
+50
+50.50
+0.50
 ```
 
-Then payment status can be calculated.
-
-```text
-paid_amount = 0
-→ UNPAID
-
-0 < paid_amount < amount
-→ PARTIALLY_PAID
-
-paid_amount >= amount
-→ PAID
-```
-
-We therefore do not need to permanently store a separate payment-status value.
-
-This avoids data inconsistency.
+API requests accept decimal strings matching a non-negative form with no more than two decimal places; Expense validation additionally rejects zero. Responses return canonical two-decimal strings such as `"50.00"`. PostgreSQL and Prisma perform exact decimal aggregation and comparison.
 
 ---
 
-# 27. Expense Payer
+# 27. Expense Scope and Side
 
-The `payer` field supports:
+A null `event_id` makes an Expense Wedding-wide. An Event-linked Expense contributes to that Event's spending and exactly once to overall Wedding spending.
 
-```text
-BRIDE
-GROOM
-BRIDE_FAMILY
-GROOM_FAMILY
-SHARED
-OTHER
-```
-
-This allows calculations such as:
-
-```text
-Bride Family Paid:
-SUM(paid_amount)
-WHERE payer = BRIDE_FAMILY
-```
+Bride Side Weddings allow only `BRIDE`, Groom Side Weddings allow only `GROOM`, and Joint Weddings allow `BRIDE`, `GROOM`, or `BOTH`. A `BRIDE` Event permits only a `BRIDE` Expense, a `GROOM` Event permits only a `GROOM` Expense, and a `BOTH` Event permits all three sides.
 
 ---
 
@@ -1218,40 +1202,7 @@ This is more flexible than storing only one `event_id` on the vendor.
 
 # 34. Vendor Payment Calculation
 
-Do not store:
-
-```text
-vendor.paid_amount
-vendor.remaining_amount
-```
-
-because this information already exists in expenses.
-
-Instead:
-
-```text
-Vendor Agreed Price
-= wedding_vendors.agreed_price
-```
-
-and:
-
-```text
-Amount Paid
-=
-SUM(expenses.paid_amount)
-WHERE expenses.vendor_id = vendor.id
-```
-
-Then:
-
-```text
-Remaining
-=
-agreed_price - amount_paid
-```
-
-This prevents payment numbers from becoming inconsistent.
+Vendor payment tracking is not part of the Budget and Expense MVP. The current Expense table has no Vendor relationship, paid amount, or payment-status fields. Do not calculate vendor paid or remaining amounts until a separate vendor-finance design is approved.
 
 ---
 
@@ -1838,15 +1789,13 @@ ATTENDING
 NOT_ATTENDING
 ```
 
-## ExpensePayer
+## WeddingCurrency
 
 ```text
-BRIDE
-GROOM
-BRIDE_FAMILY
-GROOM_FAMILY
-SHARED
-OTHER
+LKR
+USD
+AUD
+SGD
 ```
 
 ## VendorSource
@@ -1932,9 +1881,11 @@ UNIQUE(wedding_id, id)
 
 ```text
 INDEX(wedding_id)
-INDEX(event_id)
-INDEX(vendor_id)
-INDEX(wedding_id, payer)
+INDEX(wedding_id, event_id)
+INDEX(wedding_id, side)
+INDEX(wedding_id, expense_date)
+INDEX(wedding_id, category)
+UNIQUE(wedding_id, id)
 ```
 
 ## Vendors
@@ -2143,31 +2094,23 @@ weddings.budget_amount
 Total expenses:
 
 ```text
-SUM(expenses.amount)
+COALESCE(SUM(expenses.amount), 0)
+WHERE expenses.wedding_id = wedding.id
 ```
 
-Total paid:
+This query includes both Wedding-wide and Event-linked Expenses in one set. Do not add Event subtotals to it.
+
+Remaining budget, when `budget_amount` is not null:
 
 ```text
-SUM(expenses.paid_amount)
+budget_amount - total_expenses
 ```
 
-Remaining budget:
+Over-budget warning:
 
 ```text
-budget_amount
--
-SUM(expenses.amount)
-```
-
-Outstanding payment:
-
-```text
-SUM(
-  expenses.amount
-  -
-  expenses.paid_amount
-)
+is_over_budget = total_expenses > budget_amount
+over_by = GREATEST(total_expenses - budget_amount, 0)
 ```
 
 ---
@@ -2195,30 +2138,13 @@ event.budget_amount
 event_expenses
 ```
 
+Return the same `isOverBudget` and `overBy` warning fields for an Event with a configured budget. An Event with no budget still returns its spending total but no remaining or overage amount.
+
 ---
 
 # 60. Vendor Financial Calculation
 
-Vendor contract:
-
-```text
-wedding_vendors.agreed_price
-```
-
-Paid:
-
-```text
-SUM(expenses.paid_amount)
-WHERE vendor_id = vendor.id
-```
-
-Remaining:
-
-```text
-agreed_price - paid
-```
-
-This keeps one financial source of truth.
+Vendor-to-Expense linking, vendor payment totals, partial payments, and payment status are excluded from the Budget and Expense MVP. Do not derive vendor paid or remaining amounts from the current Expense table. A future approved vendor-finance design must define that relationship separately.
 
 ---
 
@@ -2297,8 +2223,8 @@ The Dashboard can calculate:
 Wedding countdown
 Wedding budget
 Total expenses
-Total paid
-Outstanding payments
+Remaining or over-budget amount
+Event budget allocations and warnings
 Task completion
 Guest counts
 RSVP counts
@@ -2420,16 +2346,9 @@ agreed_price:
 Wedding Event     Reception Event
 
 
-Expenses
-
-Advance Payment
-100000 paid
-
-Final Payment
-150000 pending
 ```
 
-The application can calculate the vendor payment status automatically.
+This relationship records which Events a vendor serves. It does not imply an Expense or payment relationship.
 
 ---
 
@@ -2609,8 +2528,8 @@ This database structure is the recommended Version 1.0 foundation for Make My Ma
 
 # 72. Implementation-Stage Questions
 
-The six unresolved groups are maintained in [PRD Section 41](PRD.md#41-implementation-stage-questions): guest invitation persistence/sharing, member invitation lifecycle, financial boundaries, guest/RSVP statistics, incomplete API contracts, and lifecycle/operational details.
+The implementation-stage groups are maintained in [PRD Section 41](PRD.md#41-implementation-stage-questions). The Budget and Expense currency, decimal, allocation, over-budget, side, and API rules are finalized; future vendor-to-Expense finance remains outside this milestone.
 
 In particular, the conceptual Guest-to-Invitation relationship in Sections 41 and 68 and the index list in Section 53 do not settle whether regenerated invitations replace a row or retain history. Choose the persistence model and matching uniqueness constraints during implementation. Do not silently infer that choice from the diagram.
 
-Member reactivation/reinvitation behavior, currency/overpayment/budget boundaries, counting units, dependency deletion, and upload completion/failure handling remain open. The finalized resource-access tables, ownership invariant, and financial permission checks do not settle those separate questions.
+Member reactivation/reinvitation behavior, guest counting units, unrelated dependency deletion, and upload completion/failure handling remain open. The finalized resource-access tables, ownership invariant, and financial permission checks do not settle those separate questions.

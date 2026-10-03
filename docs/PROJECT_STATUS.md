@@ -6,7 +6,7 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 ## Overall development status
 
-**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, wedding workspace creation/settings, end-to-end Events management, and the Task Planner are complete.** Password recovery, remaining business models, and third-party integrations remain pending.
+**Application scaffold, public UI, PostgreSQL/Prisma foundation, authentication, email verification, wedding onboarding, wedding workspace creation/settings, end-to-end Events management, the Task Planner, and the complete Budget & Expense milestone are complete.** Password recovery, remaining business models, and third-party integrations remain pending.
 
 ## Completed milestones
 
@@ -307,6 +307,38 @@ Make My Marriage is a Sri Lankan wedding-planning application for couples, famil
 
 **Verification recorded:** focused Event/Task form validation tests, frontend linting and type checking, repository linting and type checking, and frontend/API production builds passed. Existing backend Task integration coverage remains unchanged and passing.
 
+### Budget & Expense Backend — Completed
+
+**Summary:** Added the exact-money, Owner-only backend for Wedding and Event budgets, Wedding-wide and Event-linked Expenses, and financial summaries without implementing frontend changes.
+
+**Implemented:**
+
+- Wedding currency restricted to LKR, USD, AUD, or SGD, with optional overall and Event budgets stored as PostgreSQL `NUMERIC(18,2)` and handled through Prisma `Decimal` and exact decimal strings at the API boundary.
+- Currency changes before financial data exists and permanent currency locking once any budget or Expense exists.
+- Event allocation validation against an overall budget, rejection when lowering an overall budget below current allocations, support for independent Event budgets, and clearing an overall budget without changing Event budgets or Expenses.
+- Owner-only, wedding-scoped Expense create, paginated list/filter, detail, update, and delete endpoints with required name, amount, and side plus optional description, date, category, and related Event.
+- Wedding-type and Event-linked Expense side compatibility, including protection against Event Side changes that would invalidate linked Expenses.
+- Budget summary totals and warning positions for the Wedding, Wedding-wide Expenses, and each Event. Over-budget spending is allowed and reported; Event Expenses are included exactly once in the overall total.
+- Strict request validation rejects unsupported financial concepts such as payment state, vendors, invoices, receipts, refunds, recurring Expenses, and currency conversion.
+
+**Verification recorded:** migration `20261003120000_add_budget_expenses` was audited as additive, applied first to the guarded test database, and then deployed to development without resetting data. Seven focused Budget & Expense integration scenarios passed alongside all 12 web tests, 43 API unit tests, and 45 API integration tests. Repository linting, type checking, and frontend/API production builds passed.
+
+### Budget & Expense Frontend — Completed
+
+**Summary:** Added the responsive Owner-only Budget & Expenses workspace and connected all approved Wedding, Event, and Expense flows to the verified backend.
+
+**Implemented:**
+
+- Budget & Expenses Overview with exact currency-formatted overall budget, spending, remaining/overage warnings, Event allocations, Event spending positions, and paginated Expense records.
+- Expense filters for Event, side, and category, plus dedicated Add/Edit routes and an accessible confirmed-delete dialog.
+- Wedding Budget Settings with LKR/USD/AUD/SGD selection, locale-based suggestion, permanent currency-lock presentation after financial data exists, optional overall budget, allocation validation, and supported overall-budget clearing.
+- Exact amount inputs and frontend validation with at most two decimal places; allocation checks and display formatting use string/minor-unit arithmetic instead of floating-point money calculations.
+- Optional Event budgets in existing Create/Edit Event forms, including remaining-allocation validation and support for independent Event budgets when no overall budget exists.
+- Event Details budget/spending/remaining or overage summaries and paginated linked Expense management.
+- Responsive loading, empty, error, validation, saving, warning, and access states using the existing Wedding workspace design. No payment, vendor, invoice, receipt, prototype, or simulator concepts were introduced.
+
+**Verification recorded:** 17 focused frontend validation tests, all 43 API unit tests, and all 45 API integration tests passed. Repository linting and type checking passed, and frontend/API production builds passed with the Budget Overview, Budget Settings, Add Expense, and Edit Expense routes present in the Next.js manifest.
+
 ## Features in progress
 
 ### Vercel and Neon Deployment — In Progress
@@ -332,7 +364,7 @@ The following approved MVP areas are planned but not implemented:
 - Remaining approved business database models and migrations
 - Forgot Password, Reset Password, and the password-reset database model
 - Members, Owner/Admin/Family Member/Collaborator permissions, and collaborator resource assignments
-- Budgets, expenses, vendors, Google Places discovery, guests, invitations, RSVP, and documents
+- Vendors, Google Places discovery, guests, invitations, RSVP, and documents
 - Redux Toolkit business state, remaining API integrations, private Amazon S3 documents, and completion of the approved Vercel/Neon deployment
 
 ## Important implementation notes
